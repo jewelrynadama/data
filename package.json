@@ -1,0 +1,29 @@
+{
+  "name": "customer-dashboard",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12"
+  },
+  "dependencies": {
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "chart.js": "^4.5.1",
+    "firebase": "^12.14.0",
+    "lucide-react": "^0.460.0",
+    "papaparse": "^5.5.3",
+    "react": "^19.2.7",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.17.0"
+  }
+}
