@@ -308,11 +308,7 @@ export default function MarketingPage({ customers, rows, settings }: Props) {
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="page-container-scroll" style={{ flex: 1, overflowY: 'auto' }}>
-      <div className="page-body">
-
-
-
+    <div className="page-body">
         {/* ── Tab Navigator ── */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap', borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
           {TABS.map((tab) => (
@@ -1156,46 +1152,8 @@ export default function MarketingPage({ customers, rows, settings }: Props) {
                   <span className="result-count">{rfmGroups[selectedRfmGroup as keyof typeof rfmGroups].customers.length} orang</span>
                 </div>
                 <div className="card-body" style={{ padding: '10px 14px' }}>
-                  <style>{`
-                    @media (max-width: 768px) {
-                      .rfm-table-view { display: none !important; }
-                      .rfm-cards-view { display: flex !important; }
-                    }
-                    @media (min-width: 769px) {
-                      .rfm-cards-view { display: none !important; }
-                      .rfm-table-view { display: block !important; }
-                    }
-                    .rfm-cards-view {
-                      display: none;
-                      flex-direction: column;
-                      gap: 10px;
-                    }
-                    .rfm-card-row {
-                      background: var(--bg-tertiary);
-                      border: 1px solid var(--border);
-                      border-radius: 10px;
-                      padding: 12px 14px;
-                      display: flex;
-                      flex-direction: column;
-                      gap: 8px;
-                    }
-                    .rfm-card-header {
-                      display: flex;
-                      justify-content: space-between;
-                      align-items: center;
-                      border-bottom: 1px solid var(--border);
-                      padding-bottom: 8px;
-                      margin-bottom: 4px;
-                    }
-                    .rfm-card-name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-                    .rfm-card-spend { font-size: 13px; font-weight: 700; color: var(--accent-green); }
-                    .rfm-card-detail {
-                      display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); align-items: center;
-                    }
-                  `}</style>
-                  
                   {/* Desktop: table */}
-                  <div className="rfm-table-view table-wrapper">
+                  <div className="table-wrapper">
                     <table className="data-table">
                       <thead>
                         <tr>
@@ -1252,7 +1210,7 @@ export default function MarketingPage({ customers, rows, settings }: Props) {
                   </div>
 
                   {/* Mobile: cards */}
-                  <div className="rfm-cards-view">
+                  <div className="mobile-card-list">
                     {rfmGroups[selectedRfmGroup as keyof typeof rfmGroups].customers.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)' }}>Tidak ada pelanggan di klaster ini</div>
                     ) : (
@@ -1260,26 +1218,31 @@ export default function MarketingPage({ customers, rows, settings }: Props) {
                         const igHandle = extractInstagramUsername(c.instagram);
                         const igUrl = generateInstaLink(c.instagram, c.nama);
                         return (
-                          <div key={c.id} className="rfm-card-row">
-                            <div className="rfm-card-header">
-                              <span className="rfm-card-name">{c.nama}</span>
-                              <span className="rfm-card-spend">{formatRupiah(c.totalSpend)}</span>
+                          <div key={c.id} className="inv-card">
+                            <div className="inv-card-header">
+                              <div className="inv-card-title">{c.nama}</div>
                             </div>
-                            <div className="rfm-card-detail">
-                              <span>Instagram</span>
-                              <span>
-                                {igHandle ? (
-                                  <a href={igUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-purple)', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>@{igHandle} <ExternalLink size={10} style={{ opacity: 0.6 }} /></a>
-                                ) : '—'}
-                              </span>
-                            </div>
-                            <div className="rfm-card-detail">
-                              <span>WhatsApp</span>
-                              <span style={{ color: 'var(--text-primary)' }}>{c.wa || '—'}</span>
-                            </div>
-                            <div className="rfm-card-detail">
-                              <span>Trx Terakhir</span>
-                              <span>{c.lastOrder || '—'}</span>
+                            <div className="inv-card-body">
+                              <div className="inv-detail-row">
+                                <span>Total Belanja:</span>
+                                <span style={{ color: 'var(--accent-green)', fontWeight: 700 }}>{formatRupiah(c.totalSpend)}</span>
+                              </div>
+                              <div className="inv-detail-row">
+                                <span>Instagram:</span>
+                                <span>
+                                  {igHandle ? (
+                                    <a href={igUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-purple)', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>@{igHandle}</a>
+                                  ) : '—'}
+                                </span>
+                              </div>
+                              <div className="inv-detail-row">
+                                <span>WhatsApp:</span>
+                                <span>{c.wa || '—'}</span>
+                              </div>
+                              <div className="inv-detail-row">
+                                <span>Trx Terakhir:</span>
+                                <span>{c.lastOrder || '—'}</span>
+                              </div>
                             </div>
                           </div>
                         );
@@ -1291,7 +1254,6 @@ export default function MarketingPage({ customers, rows, settings }: Props) {
             )}
           </div>
         )}
-      </div>
     </div>
   );
 }

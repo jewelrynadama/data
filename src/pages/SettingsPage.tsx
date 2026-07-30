@@ -39,6 +39,15 @@ export interface StoreSettings {
   invoiceAccentColor: string;
   invoiceFooterNote: string;
   labelFooterNote: string;
+  printPaperSize?: string;
+  printOrientation?: string;
+  printMarginTop?: string;
+  printMarginRight?: string;
+  printMarginBottom?: string;
+  printMarginLeft?: string;
+  printCustomWidth?: string;
+  printCustomHeight?: string;
+  printMarginUnit?: string;
 }
 
 import { formatInputNumber } from '../utils/csvLoader';
@@ -84,6 +93,16 @@ export default function SettingsPage({ settings, onSave }: Props) {
   const [invoiceFooterNote, setInvoiceFooterNote] = useState(settings.invoiceFooterNote || 'Terima kasih atas kunjungan & kepercayaan Anda berbelanja di toko kami!');
   const [labelFooterNote, setLabelFooterNote] = useState(settings.labelFooterNote || '');
 
+  const [printPaperSize, setPrintPaperSize] = useState(settings.printPaperSize || 'A4');
+  const [printOrientation, setPrintOrientation] = useState(settings.printOrientation || 'portrait');
+  const [printMarginUnit, setPrintMarginUnit] = useState(settings.printMarginUnit || 'mm');
+  const [printMarginTop, setPrintMarginTop] = useState(settings.printMarginTop || '15');
+  const [printMarginRight, setPrintMarginRight] = useState(settings.printMarginRight || '15');
+  const [printMarginBottom, setPrintMarginBottom] = useState(settings.printMarginBottom || '15');
+  const [printMarginLeft, setPrintMarginLeft] = useState(settings.printMarginLeft || '15');
+  const [printCustomWidth, setPrintCustomWidth] = useState(settings.printCustomWidth || '210');
+  const [printCustomHeight, setPrintCustomHeight] = useState(settings.printCustomHeight || '297');
+
   const handleVipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawVal = e.target.value.replace(/\./g, '');
     if (/^\d*$/.test(rawVal)) {
@@ -118,6 +137,15 @@ export default function SettingsPage({ settings, onSave }: Props) {
       invoiceAccentColor: invoiceAccentColor.trim() || '#0f172a',
       invoiceFooterNote: invoiceFooterNote.trim() || 'Terima kasih atas kunjungan & kepercayaan Anda berbelanja di toko kami!',
       labelFooterNote: labelFooterNote.trim(),
+      printPaperSize,
+      printOrientation,
+      printMarginUnit,
+      printMarginTop,
+      printMarginRight,
+      printMarginBottom,
+      printMarginLeft,
+      printCustomWidth,
+      printCustomHeight,
     });
   };
 
@@ -140,6 +168,15 @@ export default function SettingsPage({ settings, onSave }: Props) {
       setInvoiceAccentColor('#0f172a');
       setInvoiceFooterNote('Terima kasih atas kunjungan & kepercayaan Anda berbelanja di toko kami!');
       setLabelFooterNote('');
+      setPrintPaperSize('A4');
+      setPrintOrientation('portrait');
+      setPrintMarginUnit('mm');
+      setPrintMarginTop('15');
+      setPrintMarginRight('15');
+      setPrintMarginBottom('15');
+      setPrintMarginLeft('15');
+      setPrintCustomWidth('210');
+      setPrintCustomHeight('297');
     }
   };
 
@@ -151,6 +188,8 @@ export default function SettingsPage({ settings, onSave }: Props) {
           gap: 28px;
           max-width: 1000px;
           margin: 0 auto;
+          min-width: 0;
+          width: 100%;
         }
         .settings-sidebar {
           width: 240px;
@@ -158,6 +197,7 @@ export default function SettingsPage({ settings, onSave }: Props) {
           flex-direction: column;
           gap: 6px;
           flex-shrink: 0;
+          min-width: 0;
         }
         .settings-tab-btn {
           display: flex;
@@ -174,6 +214,7 @@ export default function SettingsPage({ settings, onSave }: Props) {
           font-size: 13.5px;
           transition: var(--transition);
           font-family: 'Inter', sans-serif;
+          white-space: nowrap;
         }
         .settings-tab-btn:hover {
           background: var(--bg-card-hover);
@@ -305,16 +346,26 @@ export default function SettingsPage({ settings, onSave }: Props) {
           .settings-layout {
             flex-direction: column;
             gap: 16px;
+            padding-bottom: 48px;
           }
           .settings-sidebar {
             width: 100%;
-            flex-direction: row;
-            overflow-x: auto;
-            padding-bottom: 4px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            padding-bottom: 8px;
           }
           .settings-tab-btn {
-            flex-shrink: 0;
-            padding: 10px 14px;
+            padding: 10px;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+            white-space: normal;
+            font-size: 11px;
+            gap: 6px;
+          }
+          .settings-tab-btn span {
+            display: block;
           }
           .settings-grid-2 {
             grid-template-columns: 1fr !important;
@@ -428,7 +479,7 @@ export default function SettingsPage({ settings, onSave }: Props) {
                     </div>
                   </div>
 
-                  <div className="settings-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+                  <div className="settings-grid-2" style={{ display: 'grid', gap: 18 }}>
                     <div className="form-group">
                       <label className="form-label" style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 8 }}>No. WhatsApp Toko</label>
                       <div className="input-prefix-wrapper">
@@ -509,7 +560,7 @@ export default function SettingsPage({ settings, onSave }: Props) {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                  <div className="settings-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+                  <div className="settings-grid-2" style={{ display: 'grid', gap: 18 }}>
                     <div className="form-group">
                       <label className="form-label" style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 8 }}>Nama Aplikasi</label>
                       <div className="input-prefix-wrapper">
@@ -544,7 +595,7 @@ export default function SettingsPage({ settings, onSave }: Props) {
                     </div>
                   </div>
 
-                  <div className="settings-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+                  <div className="settings-grid-2" style={{ display: 'grid', gap: 18 }}>
                     <div className="form-group">
                       <label className="form-label" style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 8 }}>Judul Halaman Login</label>
                       <div className="input-prefix-wrapper">
@@ -722,7 +773,7 @@ export default function SettingsPage({ settings, onSave }: Props) {
                     </div>
                   </div>
 
-                  <div className="settings-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+                  <div className="settings-grid-2" style={{ display: 'grid', gap: 18 }}>
                     <div className="form-group">
                       <label className="form-label" style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 8 }}>Min. Belanja VIP (Rp)</label>
                       <div className="input-prefix-wrapper">
@@ -849,7 +900,7 @@ export default function SettingsPage({ settings, onSave }: Props) {
                           .replace(/{resi}/g, 'JZ123456789')
                           .replace(/{storeName}/g, storeName || 'Pearl Store')}
                         <div className="whatsapp-time">
-                          14:20 ✓✓
+                          14:20 âœ“âœ“
                         </div>
                       </div>
                     </div>
@@ -947,6 +998,75 @@ export default function SettingsPage({ settings, onSave }: Props) {
                       Teks ini akan muncul di bagian paling bawah pada kertas label pengiriman kurir.
                     </span>
                   </div>
+
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginTop: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Pengaturan Kertas Cetak</div>
+                    
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 8 }}>Ukuran Kertas</label>
+                      <select className="form-input-premium" style={{ paddingLeft: 12, cursor: 'pointer' }} value={printPaperSize} onChange={(e) => setPrintPaperSize(e.target.value)}>
+                        <option value="A4">A4 (210mm x 297mm)</option>
+                        <option value="A5">A5 (148mm x 210mm)</option>
+                        <option value="Letter">Letter (8.5in x 11in)</option>
+                        <option value="Thermal80">Printer Kasir / Thermal 80mm</option>
+                        <option value="Thermal58">Printer Kasir / Thermal 58mm</option>
+                        <option value="Custom">Kustom (Atur Sendiri)</option>
+                      </select>
+                    </div>
+
+                    {printPaperSize === 'Custom' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16, marginTop: 16 }}>
+                        <div>
+                          <label className="form-label" style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Lebar Kertas (mm)</label>
+                          <input type="number" className="form-input-premium" style={{ paddingLeft: 12 }} value={printCustomWidth} onChange={(e) => setPrintCustomWidth(e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="form-label" style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Tinggi Kertas (mm)</label>
+                          <input type="number" className="form-input-premium" style={{ paddingLeft: 12 }} value={printCustomHeight} onChange={(e) => setPrintCustomHeight(e.target.value)} />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="form-group" style={{ marginTop: 16 }}>
+                      <label className="form-label" style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 8 }}>Orientasi Kertas</label>
+                      <select className="form-input-premium" style={{ paddingLeft: 12, cursor: 'pointer' }} value={printOrientation} onChange={(e) => setPrintOrientation(e.target.value)}>
+                        <option value="portrait">Portrait (Tegak)</option>
+                        <option value="landscape">Landscape (Mendatar)</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group" style={{ marginTop: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <label className="form-label" style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Margin Kertas</label>
+                        <select className="form-input-premium" style={{ paddingLeft: 8, paddingRight: 8, height: 28, width: 'auto', fontSize: 11, cursor: 'pointer' }} value={printMarginUnit} onChange={(e) => setPrintMarginUnit(e.target.value)}>
+                          <option value="mm">Milimeter (mm)</option>
+                          <option value="px">Pixel (px)</option>
+                          <option value="cm">Sentimeter (cm)</option>
+                        </select>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textAlign: 'center' }}>Atas</div>
+                          <input type="number" className="form-input-premium" style={{ paddingLeft: 8, paddingRight: 8, textAlign: 'center' }} value={printMarginTop} onChange={(e) => setPrintMarginTop(e.target.value)} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textAlign: 'center' }}>Kanan</div>
+                          <input type="number" className="form-input-premium" style={{ paddingLeft: 8, paddingRight: 8, textAlign: 'center' }} value={printMarginRight} onChange={(e) => setPrintMarginRight(e.target.value)} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textAlign: 'center' }}>Bawah</div>
+                          <input type="number" className="form-input-premium" style={{ paddingLeft: 8, paddingRight: 8, textAlign: 'center' }} value={printMarginBottom} onChange={(e) => setPrintMarginBottom(e.target.value)} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textAlign: 'center' }}>Kiri</div>
+                          <input type="number" className="form-input-premium" style={{ paddingLeft: 8, paddingRight: 8, textAlign: 'center' }} value={printMarginLeft} onChange={(e) => setPrintMarginLeft(e.target.value)} />
+                        </div>
+                      </div>
+                      <span className="form-helper" style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginTop: 6 }}>
+                        Kosongkan margin atau isi '0' jika Anda menggunakan printer kasir (Thermal) agar tidak terpotong.
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -974,3 +1094,4 @@ export default function SettingsPage({ settings, onSave }: Props) {
     </div>
   );
 }
+

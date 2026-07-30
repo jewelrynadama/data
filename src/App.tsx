@@ -1,19 +1,28 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, RefreshCw, Bell, Sun, Moon, LogOut, LayoutDashboard, Users, ShoppingBag, BarChart3, Settings, Megaphone, Menu } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
+import { RefreshCw, Bell, Sun, Moon, LogOut, Menu } from 'lucide-react';
 import Sidebar from './components/Sidebar';
-import DashboardPage from './pages/DashboardPage';
-import CustomersPage from './pages/CustomersPage';
-import OrdersPage from './pages/OrdersPage';
-import AnalyticsPage from './pages/AnalyticsPage';
-import ExportPage from './pages/ExportPage';
-import MarketingPage from './pages/MarketingPage';
-import InboxPage from './pages/InboxPage';
-import BirthdayPage from './pages/BirthdayPage';
-import ReportsPage from './pages/ReportsPage';
-import InvoicePage from './pages/InvoicePage';
-import InventoryPage from './pages/InventoryPage';
-import KanbanPage from './pages/KanbanPage';
-import RFMAnalyticsPage from './pages/RFMAnalyticsPage';
+import PearlAIChatWidget from './components/PearlAIChatWidget';
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const CustomersPage = lazy(() => import('./pages/CustomersPage'));
+const OrdersPage = lazy(() => import('./pages/OrdersPage'));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const ExportPage = lazy(() => import('./pages/ExportPage'));
+const MarketingPage = lazy(() => import('./pages/MarketingPage'));
+const InboxPage = lazy(() => import('./pages/InboxPage'));
+const BirthdayPage = lazy(() => import('./pages/BirthdayPage'));
+const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const InvoicePage = lazy(() => import('./pages/InvoicePage'));
+const InventoryPage = lazy(() => import('./pages/InventoryPage'));
+const CatalogPage = lazy(() => import('./pages/CatalogPage'));
+const KanbanPage = lazy(() => import('./pages/KanbanPage'));
+const RFMAnalyticsPage = lazy(() => import('./pages/RFMAnalyticsPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const WhatsAppImporterPage = lazy(() => import('./pages/WhatsAppImporterPage'));
+const DrivePhotoLinkerPage = lazy(() => import('./pages/DrivePhotoLinkerPage'));
+const FinanceAnalyticsPage = lazy(() => import('./pages/FinanceAnalyticsPage'));
+const SalesTargetPage = lazy(() => import('./pages/SalesTargetPage'));
+const ActivityLogPage = lazy(() => import('./pages/ActivityLogPage'));
+const IGAnalyzerPage = lazy(() => import('./pages/IGAnalyzerPage'));
 import { loadCustomerData, extractCity, formatWhatsApp, loadCatalogData } from './utils/csvLoader';
 import { formatAddress } from './utils/addressHelper';
 import type { Customer, CustomerRow, PendingOrder, CatalogItem } from './types';
@@ -28,20 +37,33 @@ import {
   saveOrderEdit,
   deleteOrder,
   mergeData,
+  saveInventoryLogs,
 } from './utils/localStore';
 import type { LocalStore } from './utils/localStore';
 import { auth, db } from './utils/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import type { User } from 'firebase/auth';
+import { cleanPrice } from './utils/csvLoader';
 import { subscribeToStore, saveToFirestore, mergeAndUploadLocal } from './utils/firebaseSync';
 import LoginScreen from './components/LoginScreen';
-import SettingsPage from './pages/SettingsPage';
 import type { StoreSettings } from './pages/SettingsPage';
 import NotificationCenter from './components/NotificationCenter';
 import { computeNotifications } from './utils/notificationEngine';
-import SocialIntelligencePage from './pages/SocialIntelligencePage';
-import AITrendsPage from './pages/AITrendsPage';
+// BUG-ST3 fix: logActivity now imported from utils/activityLogger (not ActivityLogPage)
+// This resolves the INEFFECTIVE_DYNAMIC_IMPORT Vite warning
+import { logActivity } from './utils/activityLogger';
+import ErrorBoundary from './components/ErrorBoundary';
+const SocialIntelligencePage = lazy(() => import('./pages/SocialIntelligencePage'));
+const AITrendsPage = lazy(() => import('./pages/AITrendsPage'));
+const CommandCenterPage = lazy(() => import('./pages/CommandCenterPage'));
+const AffinityMatrixPage = lazy(() => import('./pages/AffinityMatrixPage'));
+const ProfitOptimizerPage = lazy(() => import('./pages/ProfitOptimizerPage'));
+const DemandForecastPage = lazy(() => import('./pages/DemandForecastPage'));
+const BundleRecommenderPage = lazy(() => import('./pages/BundleRecommenderPage'));
+const ChatImportPage = lazy(() => import('./pages/ChatImportPage'));
 import CommandCenter from './components/CommandCenter';
 import JarvisVoiceAI from './components/JarvisVoiceAI';
+
 import { extractInstagramUsername } from './utils/socialIntelligenceEngine';
 import { requestNotificationPermission, sendBirthdayNotifications, sendVipInactiveNotifications } from './utils/pushNotification';
 
@@ -63,9 +85,18 @@ const DEFAULT_SETTINGS: StoreSettings = {
   invoiceAccentColor: '#0f172a',
   invoiceFooterNote: 'Terima kasih atas kunjungan & kepercayaan Anda berbelanja di toko kami!',
   labelFooterNote: '',
+  printPaperSize: 'A4',
+  printOrientation: 'portrait',
+  printMarginUnit: 'mm',
+  printMarginTop: '15',
+  printMarginRight: '15',
+  printMarginBottom: '15',
+  printMarginLeft: '15',
+  printCustomWidth: '210',
+  printCustomHeight: '297',
 };
 
-type Page = 'dashboard' | 'customers' | 'orders' | 'inbox' | 'marketing' | 'social' | 'analytics' | 'rfm-analytics' | 'export' | 'settings' | 'birthday' | 'reports' | 'invoice' | 'inventory' | 'kanban' | 'catalog' | 'ai-trends';
+type Page = 'dashboard' | 'customers' | 'orders' | 'inbox' | 'marketing' | 'social' | 'analytics' | 'rfm-analytics' | 'finance-analytics' | 'export' | 'settings' | 'birthday' | 'reports' | 'invoice' | 'inventory' | 'kanban' | 'catalog' | 'ai-trends' | 'whatsapp-importer' | 'drive-photo-linker' | 'sales-target' | 'activity-log' | 'ig-analyzer' | 'command-center' | 'affinity-matrix' | 'profit-optimizer' | 'demand-forecast' | 'bundle-recommender' | 'chat-history';
 
 const PAGE_TITLES: Record<Page, { title: string; subtitle: string }> = {
   dashboard:  { title: 'Overview',           subtitle: 'Key metrics and insights at a glance' },
@@ -74,10 +105,11 @@ const PAGE_TITLES: Record<Page, { title: string; subtitle: string }> = {
   inbox:      { title: 'Order Inbox',        subtitle: 'Review and confirm incoming orders' },
   kanban:     { title: 'Kanban Tracker',     subtitle: 'Visual board status pesanan' },
   marketing:  { title: 'Marketing Hub',      subtitle: 'Campaigns, Flash Sales, and Re-engagement' },
-  social:     { title: 'Social Radar',       subtitle: 'AI Scanner untuk memantau momen penting pelanggan' },
+  social:     { title: 'Kalender Momen',     subtitle: 'Pantau momen spesial dan ulang tahun pelanggan' },
   'ai-trends':{ title: 'AI Market Radar',    subtitle: 'Analisis tren pasar dan kompetitor secara instan' },
   analytics:  { title: 'Analytics',          subtitle: 'Deep-dive charts and distributions' },
   'rfm-analytics': { title: 'RFM Analytics', subtitle: 'Customer Segmentation based on Recency, Frequency, Monetary' },
+  'finance-analytics': { title: 'Analisis Keuangan', subtitle: 'Laporan keuangan mendalam, profitabilitas, arus kas & saran AI' },
   birthday:   { title: 'Birthday Tracker',   subtitle: 'Kelola ucapan ulang tahun pelanggan' },
   reports:    { title: 'Laporan Bulanan',    subtitle: 'Ringkasan performa toko per bulan' },
   invoice:    { title: 'Invoice Generator', subtitle: 'Generate dan cetak invoice transaksi' },
@@ -85,6 +117,17 @@ const PAGE_TITLES: Record<Page, { title: string; subtitle: string }> = {
   catalog:    { title: 'Katalog Produk',     subtitle: 'Analisis produk terlaris dari data order' },
   export:     { title: 'Export Data',        subtitle: 'Download your data in various formats' },
   settings:   { title: 'Store Settings',     subtitle: 'Configure store details and classification thresholds' },
+  'whatsapp-importer': { title: 'WhatsApp Importer', subtitle: 'Import data pelanggan dari chat WhatsApp' },
+  'drive-photo-linker': { title: 'Drive Photo Linker', subtitle: 'Hubungkan foto Google Drive ke pesanan CRM' },
+  'sales-target': { title: 'Sales Target', subtitle: 'Tetapkan & pantau target penjualan bulanan' },
+  'activity-log': { title: 'Activity Log', subtitle: 'Riwayat semua aktivitas tambah, edit & hapus data' },
+  'ig-analyzer':  { title: 'IG Analyzer',  subtitle: 'Analisis cerdas profil Instagram pelanggan (Mock)' },
+  'command-center': { title: 'PearlMind™ Command Center', subtitle: '5 AI engines: DNA Fingerprint · Autopilot · Forecast · Cohort · Health Score' },
+  'affinity-matrix': { title: 'Product Affinity Matrix™', subtitle: 'Temukan pasangan produk yang paling sering dibeli bersama' },
+  'profit-optimizer': { title: 'Product Profit Optimizer™', subtitle: 'Analisis margin & efisiensi produk untuk memaksimalkan profit' },
+  'demand-forecast': { title: 'Demand Forecasting', subtitle: 'Prediksi permintaan produk 3 bulan ke depan berdasarkan tren historis' },
+  'bundle-recommender': { title: 'Smart Bundle Recommender™', subtitle: 'Kombinasi produk cerdas berdasarkan pola pembelian customer' },
+  'chat-history': { title: 'WhatsApp Chat History', subtitle: 'Lihat riwayat chat WhatsApp per pelanggan — 100% privat, tersimpan di perangkat Anda' },
 };
 
 export default function App() {
@@ -123,7 +166,7 @@ export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('theme');
     if (saved === 'light' || saved === 'dark') return saved;
-    return 'dark';
+    return 'light';
   });
 
   useEffect(() => {
@@ -140,7 +183,8 @@ export default function App() {
   };
   
   // Auth states
-  const [user, setUser] = useState<any>(null);
+  // BUG-10 fix: proper User type instead of any
+  const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
@@ -161,7 +205,13 @@ export default function App() {
     newOrders: [],
     editedOrders: {},
     deletedOrderIds: [],
+    inventoryLogs: [],
   });
+
+  const storeDataRef = useRef(storeData);
+  useEffect(() => {
+    storeDataRef.current = storeData;
+  }, [storeData]);
 
   const [localTrigger, setLocalTrigger] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -171,6 +221,7 @@ export default function App() {
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   
+
   // CommandCenter states & listeners
   const [commandCenterOpen, setCommandCenterOpen] = useState(false);
 
@@ -213,7 +264,7 @@ export default function App() {
       setRawCustomers(result.customers);
       setRawRows(result.rows);
       
-      const merged = mergeData(result.customers, result.rows, storeData);
+      const merged = mergeData(result.customers, result.rows, storeDataRef.current);
       setCustomers(merged.customers);
       setRows(merged.rows);
 
@@ -233,7 +284,7 @@ export default function App() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [showToast, storeData]);
+  }, [showToast]);
 
   // Listen to Auth state
   useEffect(() => {
@@ -246,6 +297,23 @@ export default function App() {
       setAuthLoading(false);
     });
     return unsub;
+  }, []);
+
+  // Migrate old standalone inventory logs
+  useEffect(() => {
+    try {
+      const oldLogs = localStorage.getItem('inventory_movement_logs');
+      if (oldLogs) {
+        const parsed = JSON.parse(oldLogs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          saveInventoryLogs(parsed);
+          setLocalTrigger(t => t + 1);
+        }
+        localStorage.removeItem('inventory_movement_logs');
+      }
+    } catch (e) {
+      console.error('Failed to migrate old inventory logs', e);
+    }
   }, []);
 
   // Listen to Firestore updates if logged in, otherwise use localStorage
@@ -265,7 +333,8 @@ export default function App() {
             (parsed.newOrders && parsed.newOrders.length > 0) ||
             (parsed.editedCustomers && Object.keys(parsed.editedCustomers).length > 0) ||
             (parsed.deletedCustomerIds && parsed.deletedCustomerIds.length > 0) ||
-            (parsed.deletedOrderIds && parsed.deletedOrderIds.length > 0);
+            (parsed.deletedOrderIds && parsed.deletedOrderIds.length > 0) ||
+            (parsed.inventoryLogs && parsed.inventoryLogs.length > 0);
 
           if (hasLocalData) {
             if (window.confirm('Ditemukan data input manual offline di laptop ini. Apakah Anda ingin mengunggah dan menggabungkannya ke cloud online agar bisa diakses dari laptop lain?')) {
@@ -331,6 +400,9 @@ export default function App() {
     }
   }, [rawCustomers, rawRows, storeData]);
 
+  // BUG-03 fix: use ref to track previous count so we don't re-subscribe on every change
+  const prevPendingCountRef = useRef(0);
+
   // Listen to pending orders from Firestore in real-time
   useEffect(() => {
     if (!db) return;
@@ -340,26 +412,24 @@ export default function App() {
       snapshot.forEach((doc) => {
         list.push({ id: doc.id, ...doc.data() } as PendingOrder);
       });
-      
+
+      // BUG-07 fix: use .catch() to handle async rejection from autoplay policy
       // Play a premium crystal chime sound if a new order arrives
-      if (list.length > pendingOrders.length && pendingOrders.length > 0) {
-        try {
-          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
-          audio.volume = 0.5;
-          audio.play();
-        } catch (e) {
-          console.log('Audio play failed:', e);
-        }
+      if (list.length > prevPendingCountRef.current && prevPendingCountRef.current > 0) {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
+        audio.volume = 0.5;
+        audio.play().catch((e) => console.log('Audio play failed:', e));
         showToast('📥 Orderan Baru Masuk!', 'info');
       }
+      prevPendingCountRef.current = list.length;
       setPendingOrders(list);
     }, (err) => {
       console.error('Pending orders subscription error:', err);
     });
     return unsubscribe;
-  }, [db, pendingOrders.length]);
+  }, [db, showToast]);
 
-  const handleAddCustomer = useCallback((newC: { nama: string; instagram?: string; wa?: string; alamat?: string; tanggalUlangTahun?: string; city?: string }) => {
+  const handleAddCustomer = useCallback((newC: { nama: string; instagram?: string; wa?: string; alamat?: string; tanggalUlangTahun?: string; city?: string; orders?: CustomerRow[] }) => {
     const customer: Customer = {
       id: `local-customer-${Date.now()}`,
       nama: newC.nama,
@@ -368,9 +438,10 @@ export default function App() {
       alamat: newC.alamat ? formatAddress(newC.alamat) : '',
       tanggalUlangTahun: newC.tanggalUlangTahun || '',
       city: newC.city || '',
-      orders: [],
-      orderCount: 0,
-      totalSpend: 0,
+      orders: newC.orders || [],
+      orderCount: newC.orders ? newC.orders.length : 0,
+      // BUG-04 fix: use cleanPrice() instead of Number() to handle Rupiah formatted strings like "1.500.000"
+      totalSpend: newC.orders ? newC.orders.reduce((sum, o) => sum + cleanPrice(o.totalBayar), 0) : 0,
       lastOrder: '',
     };
     if (user) {
@@ -383,6 +454,7 @@ export default function App() {
       saveNewCustomer(customer);
       setLocalTrigger((t) => t + 1);
     }
+    logActivity({ type: 'add', entity: 'customer', label: customer.nama });
     showToast(`Customer "${customer.nama}" added successfully`, 'success');
   }, [showToast, user, storeData]);
 
@@ -407,6 +479,7 @@ export default function App() {
       saveCustomerEdit(id, formattedPatch);
       setLocalTrigger((t) => t + 1);
     }
+    logActivity({ type: 'edit', entity: 'customer', label: id, details: Object.keys(formattedPatch).join(', ') });
     showToast('Customer updated successfully', 'success');
   }, [showToast, user, storeData]);
 
@@ -422,6 +495,7 @@ export default function App() {
       deleteCustomer(id);
       setLocalTrigger((t) => t + 1);
     }
+    logActivity({ type: 'delete', entity: 'customer', label: id });
     showToast('Customer deleted successfully', 'success');
   }, [showToast, user, storeData]);
 
@@ -501,10 +575,63 @@ export default function App() {
       saveNewOrder(order);
       setLocalTrigger((t) => t + 1);
     }
+    logActivity({ type: 'add', entity: 'order', label: `${orderData.namaInstagram || 'Unknown'} — ${orderData.jenis || ''}` });
     showToast('Order added successfully', 'success');
   }, [showToast, customers, user, storeData]);
 
+  // BUG-06 fix: handleBatch functions declared BEFORE handleEditOrder/handleDeleteOrder
+  // to avoid referencing a const before it's defined in the closure chain.
+  const handleBatchEditOrders = useCallback((rawIds: string[], patch: Partial<CustomerRow>) => {
+    const ids = rawIds.flatMap(id => id.split(','));
+    const formattedPatch = { ...patch };
+    if (formattedPatch.wa) {
+      formattedPatch.wa = formatWhatsApp(formattedPatch.wa);
+    }
+    if (formattedPatch.alamat) {
+      formattedPatch.alamat = formatAddress(formattedPatch.alamat);
+    }
+    if (user) {
+      const nextEditedOrders = { ...storeData.editedOrders };
+      ids.forEach(id => {
+        nextEditedOrders[id] = { ...(nextEditedOrders[id] ?? {}), ...formattedPatch };
+      });
+      const nextData = {
+        ...storeData,
+        editedOrders: nextEditedOrders
+      };
+      saveToFirestore(nextData);
+    } else {
+      ids.forEach(id => {
+        saveOrderEdit(id, formattedPatch);
+      });
+      setLocalTrigger((t) => t + 1);
+    }
+    showToast(`${ids.length} orders updated successfully`, 'success');
+  }, [showToast, user, storeData]);
+
+  const handleBatchDeleteOrders = useCallback((rawIds: string[]) => {
+    const ids = rawIds.flatMap(id => id.split(','));
+    if (user) {
+      const nextData = {
+        ...storeData,
+        deletedOrderIds: [...new Set([...storeData.deletedOrderIds, ...ids])],
+        newOrders: storeData.newOrders.filter((o: any) => !ids.includes(o.id))
+      };
+      saveToFirestore(nextData);
+    } else {
+      ids.forEach(id => {
+        deleteOrder(id);
+      });
+      setLocalTrigger((t) => t + 1);
+    }
+    showToast(`${ids.length} orders deleted successfully`, 'success');
+  }, [showToast, user, storeData]);
+
   const handleEditOrder = useCallback((id: string, patch: Partial<CustomerRow>) => {
+    if (id.includes(',')) {
+      handleBatchEditOrders(id.split(','), patch);
+      return;
+    }
     const formattedPatch = { ...patch };
     if (formattedPatch.wa) {
       formattedPatch.wa = formatWhatsApp(formattedPatch.wa);
@@ -525,10 +652,15 @@ export default function App() {
       saveOrderEdit(id, formattedPatch);
       setLocalTrigger((t) => t + 1);
     }
+    logActivity({ type: 'edit', entity: 'order', label: id, details: Object.keys(formattedPatch).join(', ') });
     showToast('Order updated successfully', 'success');
-  }, [showToast, user, storeData]);
+  }, [showToast, user, storeData, handleBatchEditOrders]);
 
   const handleDeleteOrder = useCallback((id: string) => {
+    if (id.includes(',')) {
+      handleBatchDeleteOrders(id.split(','));
+      return;
+    }
     if (user) {
       const nextData = {
         ...storeData,
@@ -540,13 +672,27 @@ export default function App() {
       deleteOrder(id);
       setLocalTrigger((t) => t + 1);
     }
+    logActivity({ type: 'delete', entity: 'order', label: id });
     showToast('Order deleted successfully', 'success');
-  }, [showToast, user, storeData]);
+  }, [showToast, user, storeData, handleBatchDeleteOrders]);
+
+  const handleUpdateInventoryLogs = useCallback((newLogs: any[]) => {
+    if (user) {
+      const nextData = {
+        ...storeData,
+        inventoryLogs: newLogs
+      };
+      saveToFirestore(nextData);
+    } else {
+      saveInventoryLogs(newLogs);
+      setLocalTrigger((t) => t + 1);
+    }
+  }, [user, storeData]);
 
   const handleAcceptPendingOrder = useCallback(async (pending: PendingOrder) => {
     try {
       const orderId = `order-${Date.now()}`;
-      
+
       const newOrder: CustomerRow = {
         id: orderId,
         namaInstagram: pending.customerName,
@@ -590,7 +736,7 @@ export default function App() {
       if (db) {
         await deleteDoc(doc(db, 'pending_orders', pending.id));
       }
-      
+
       showToast(`Order dari ${pending.customerName} berhasil diterima!`, 'success');
     } catch (error: any) {
       console.error('Failed to accept pending order:', error);
@@ -609,50 +755,6 @@ export default function App() {
       showToast(`Gagal menghapus order: ${error.message}`, 'error');
     }
   }, [showToast]);
-
-  const handleBatchEditOrders = useCallback((ids: string[], patch: Partial<CustomerRow>) => {
-    const formattedPatch = { ...patch };
-    if (formattedPatch.wa) {
-      formattedPatch.wa = formatWhatsApp(formattedPatch.wa);
-    }
-    if (formattedPatch.alamat) {
-      formattedPatch.alamat = formatAddress(formattedPatch.alamat);
-    }
-    if (user) {
-      const nextEditedOrders = { ...storeData.editedOrders };
-      ids.forEach(id => {
-        nextEditedOrders[id] = { ...(nextEditedOrders[id] ?? {}), ...formattedPatch };
-      });
-      const nextData = {
-        ...storeData,
-        editedOrders: nextEditedOrders
-      };
-      saveToFirestore(nextData);
-    } else {
-      ids.forEach(id => {
-        saveOrderEdit(id, formattedPatch);
-      });
-      setLocalTrigger((t) => t + 1);
-    }
-    showToast(`${ids.length} orders updated successfully`, 'success');
-  }, [showToast, user, storeData]);
-
-  const handleBatchDeleteOrders = useCallback((ids: string[]) => {
-    if (user) {
-      const nextData = {
-        ...storeData,
-        deletedOrderIds: [...new Set([...storeData.deletedOrderIds, ...ids])],
-        newOrders: storeData.newOrders.filter((o: any) => !ids.includes(o.id))
-      };
-      saveToFirestore(nextData);
-    } else {
-      ids.forEach(id => {
-        deleteOrder(id);
-      });
-      setLocalTrigger((t) => t + 1);
-    }
-    showToast(`${ids.length} orders deleted successfully`, 'success');
-  }, [showToast, user, storeData]);
 
   const birthdayAlerts = useMemo(() => {
     return getBirthdayAlerts(customers);
@@ -712,19 +814,16 @@ export default function App() {
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        minHeight: '100vh', background: '#05050c', color: 'var(--text-muted)',
-        flexDirection: 'column', gap: 16, fontFamily: 'Inter, sans-serif'
+        minHeight: '100vh', background: '#18191A', color: 'var(--text-muted)',
+        flexDirection: 'column', gap: 16,
       }}>
         <div style={{
           width: 48, height: 48, borderRadius: '50%',
-          border: '3px solid rgba(124,58,237,0.2)',
-          borderTopColor: '#7c3aed',
+          border: '3px solid rgba(24,119,242,0.2)',
+          borderTopColor: '#1877F2',
           animation: 'spin 0.8s linear infinite',
         }} />
         <div style={{ fontSize: 14 }}>Mengautentikasi {settings.appName || 'PearlCRM'}...</div>
-        <style>{`
-          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        `}</style>
       </div>
     );
   }
@@ -738,12 +837,10 @@ export default function App() {
       <div className="ambient-glow g-1"></div>
       <div className="ambient-glow g-2"></div>
       {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div 
-          className="sidebar-overlay" 
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      <div 
+        className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+      />
       <Sidebar
         page={page}
         onNavigate={(p) => {
@@ -783,25 +880,16 @@ export default function App() {
           </div>
 
           <div className="header-right">
-            {/* Global search — only for customer/order pages */}
-            {(page === 'customers' || page === 'orders') && (
-              <div className="search-box">
-                <Search size={15} className="search-icon" />
-                <input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={`Search ${page}…`}
-                />
-              </div>
-            )}
-
+            {/* Global search removed as pages have their own search bars */}
             <button
-              className="icon-btn"
+              className="btn btn-secondary"
               onClick={() => loadData(true)}
-              title="Refresh data"
-              style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined}
+              title="Refresh data dari spreadsheet"
+              disabled={refreshing}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px', fontWeight: 600 }}
             >
-              <RefreshCw size={15} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} />
+              <RefreshCw size={14} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} />
+              {refreshing ? 'Sinkronisasi...' : 'Sync Data'}
             </button>
 
             {/* Mobile Header Actions (Theme Toggle & Logout) */}
@@ -861,7 +949,7 @@ export default function App() {
                   width: 32,
                   height: 32,
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg,#7c3aed,#4f46e5)',
+                  background: '#1877F2',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -954,8 +1042,8 @@ export default function App() {
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
             <div style={{
               width: 48, height: 48, borderRadius: '50%',
-              border: '3px solid rgba(124,58,237,0.2)',
-              borderTopColor: '#7c3aed',
+              border: '3px solid rgba(24,119,242,0.2)',
+              borderTopColor: '#1877F2',
               animation: 'spin 0.8s linear infinite',
             }} />
             <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Loading customer data…</div>
@@ -969,16 +1057,40 @@ export default function App() {
               <div className="empty-icon">⚠️</div>
               <div className="empty-title">Failed to load data</div>
               <div className="empty-text">{error}</div>
-              <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => loadData()}>
-                Retry
-              </button>
+              <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+                <button className="btn btn-primary" onClick={() => loadData()}>
+                  Retry
+                </button>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => {
+                    import('./utils/localStore').then(({ restoreDeletedOrders }) => {
+                      restoreDeletedOrders();
+                      import('./utils/firebaseSync').then(({ clearDeletedOrdersInFirestore }) => {
+                        clearDeletedOrdersInFirestore().finally(() => {
+                          window.location.reload();
+                        });
+                      });
+                    });
+                  }} 
+                  style={{ background: '#ef4444', color: 'white', border: 'none' }}>
+                  Restore Spreadsheet Data
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* Pages */}
         {!loading && !error && (
-          <>
+          <div className="pages-container">
+          <ErrorBoundary pageName="Halaman ini">
+          <Suspense fallback={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 16 }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid rgba(24,119,242,0.2)', borderTopColor: '#1877F2', animation: 'spin 0.8s linear infinite' }} />
+              <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Memuat halaman...</div>
+            </div>
+          }>
             {page === 'dashboard' && (
               <DashboardPage
                 customers={customers}
@@ -1032,6 +1144,7 @@ export default function App() {
             {page === 'inbox' && (
               <InboxPage
                 pendingOrders={pendingOrders}
+                customers={customers}
                 onAccept={handleAcceptPendingOrder}
                 onReject={handleRejectPendingOrder}
               />
@@ -1051,6 +1164,7 @@ export default function App() {
             )}
             {page === 'analytics' && <AnalyticsPage customers={customers} rows={rows} theme={theme} />}
             {page === 'rfm-analytics' && <RFMAnalyticsPage customers={customers} onSelectCustomer={(c) => { setSelectedCustomer(c); setPage('customers'); }} />}
+            {page === 'finance-analytics' && <FinanceAnalyticsPage rows={rows} catalogItems={catalogItems} theme={theme} />}
             {page === 'birthday' && (
               <BirthdayPage customers={customers} settings={settings} />
             )}
@@ -1060,7 +1174,8 @@ export default function App() {
             {page === 'invoice' && (
               <InvoicePage customers={customers} settings={settings} />
             )}
-            {page === 'inventory' && <InventoryPage catalogItems={catalogItems} />}
+            {page === 'catalog' && <CatalogPage catalogItems={catalogItems} rows={rows} />}
+            {page === 'inventory' && <InventoryPage catalogItems={catalogItems} inventoryLogs={storeData.inventoryLogs || []} onUpdateLogs={handleUpdateInventoryLogs} />}
             {page === 'ai-trends' && <AITrendsPage />}
             {page === 'export' && (
               <ExportPage
@@ -1078,31 +1193,52 @@ export default function App() {
                 onSave={handleSaveSettings}
               />
             )}
-          </>
+            {page === 'whatsapp-importer' && <WhatsAppImporterPage customers={customers} rows={rows} />}
+            {page === 'drive-photo-linker' && <DrivePhotoLinkerPage rows={rows} onShowToast={showToast} />}
+            {page === 'sales-target' && <SalesTargetPage customers={customers} rows={rows} theme={theme} />}
+            {page === 'activity-log' && <ActivityLogPage theme={theme} />}
+            {page === 'ig-analyzer' && <IGAnalyzerPage onAddCustomer={handleAddCustomer} customers={customers} onEditCustomer={handleEditCustomer} />}
+            {page === 'command-center' && (
+              <CommandCenterPage
+                customers={customers}
+                rows={rows}
+                onSelectCustomer={(c) => { setSelectedCustomer(c); setPage('customers'); }}
+              />
+            )}
+            {page === 'affinity-matrix' && (
+              <AffinityMatrixPage
+                customers={customers}
+                rows={rows}
+              />
+            )}
+            {page === 'profit-optimizer' && (
+              <ProfitOptimizerPage
+                customers={customers}
+                rows={rows}
+                catalog={catalogItems}
+              />
+            )}
+            {page === 'demand-forecast' && (
+              <DemandForecastPage
+                customers={customers}
+                rows={rows}
+              />
+            )}
+            {page === 'bundle-recommender' && (
+              <BundleRecommenderPage
+                customers={customers}
+                rows={rows}
+              />
+            )}
+            {page === 'chat-history' && (
+              <ChatImportPage
+                customers={customers}
+              />
+            )}
+          </Suspense>
+          </ErrorBoundary>
+          </div>
         )}
-      </div>
-
-      <div className="mobile-nav">
-        {[
-          { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
-          { id: 'customers', label: 'Customers', icon: Users },
-          { id: 'orders', label: 'Orders', icon: ShoppingBag },
-          { id: 'marketing', label: 'Marketing', icon: Megaphone },
-          { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-          { id: 'settings', label: 'Settings', icon: Settings },
-        ].map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.id}
-              className={`mobile-nav-item ${page === item.id ? 'active' : ''}`}
-              onClick={() => handleNavigate(item.id)}
-            >
-              <Icon size={18} />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
       </div>
 
       {/* Smart Notification Center */}
@@ -1141,8 +1277,9 @@ export default function App() {
         showToast={showToast}
       />
       
-      {/* JARVIS Voice AI */}
+      <PearlAIChatWidget customers={customers} />
       <JarvisVoiceAI customers={customers} rows={rows} settings={settings} setPage={setPage} />
+
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .page-container-scroll {

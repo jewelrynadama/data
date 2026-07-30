@@ -1,5 +1,6 @@
 // src/components/OrderFormModal.tsx
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Save, ShoppingBag } from 'lucide-react';
 import type { CustomerRow, Customer } from '../types';
 import { formatInputNumber } from '../utils/csvLoader';
@@ -16,11 +17,11 @@ interface Props {
 const JENIS_OPTIONS = ['Necklace', 'Pendant', 'Earrings', 'Bracelet', 'Ring', 'Brooch', 'Jewelry Set', 'Loose'];
 const PEARL_OPTIONS = ['Akoya Seawater', 'Akoya Freshwater', 'Southsea', 'Tahitian Seawater', 'Edison', 'Freshwater', 'Mix Pearls'];
 const PAYMENT_OPTIONS = ['Transfer', 'Shopee', 'Tokopedia', 'Cash', 'COD', 'Tukar', 'Retur'];
-const SHAPE_OPTIONS = ['Round', 'Near Round', 'Oval', 'Drop', 'Button', 'Baroque', 'Semi Baroque', 'Circle'];
+const SHAPE_OPTIONS = ['Round', 'Near Round', 'Oval', 'Drop', 'Tear Drop', 'Button', 'Baroque', 'Semi Baroque', 'Baroque Tear Drop', 'Circle'];
 const GRADE_OPTIONS = ['AAA', 'AA+', 'AA', 'A+', 'A', 'B', 'C'];
 
 const EMPTY: Partial<CustomerRow> = {
-  tanggalOrder: '', jenis: '', type: '', size: '', color: '', grade: '',
+  no: '', kode: '', tanggalOrder: '', jenis: '', type: '', size: '', color: '', grade: '',
   shape: '', stone: '', stoneWeight: '', qty: '1',
   totalBayar: '', ongkir: '', paymentVia: '', kurir: '', keterangan: '', resi: '', orderStatus: 'pending',
 };
@@ -75,20 +76,13 @@ export default function OrderFormModal({ customerName, customers, initial, onSav
 
   const isEdit = !!initial;
 
-  return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}
-      style={{ alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{
-        background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-        borderRadius: 16, width: 540, maxWidth: '95vw', maxHeight: '92vh',
-        overflowY: 'auto', boxShadow: 'var(--shadow-lg)',
-        animation: 'modalIn 0.22s cubic-bezier(0.4,0,0.2,1)',
-      }}>
+  return createPortal(
+    <div className="modal-overlay center" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-content" style={{ width: 540 }}>
         {/* Header */}
-        <div style={{
+        <div className="modal-header" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '16px 20px', borderBottom: '1px solid var(--border)',
-          position: 'sticky', top: 0, background: 'var(--bg-secondary)', zIndex: 1, borderRadius: '16px 16px 0 0',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg,#10b981,#059669)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -102,7 +96,7 @@ export default function OrderFormModal({ customerName, customers, initial, onSav
           <button className="icon-btn" onClick={onClose}><X size={16} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <form onSubmit={handleSubmit} className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Customer Selection (only if customerName is not pre-specified) */}
           {!customerName && (
             <Field label="Customer *" error={errors.namaInstagram}>
@@ -188,6 +182,14 @@ export default function OrderFormModal({ customerName, customers, initial, onSav
           {/* Section: Waktu */}
           <SectionLabel>📅 Informasi Order</SectionLabel>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="No. Pesanan">
+              <input className="form-input" value={form.no ?? ''} onChange={(e) => set('no', e.target.value)} placeholder="cth: 441" />
+            </Field>
+            <Field label="SKU Pesanan (Kode)">
+              <input className="form-input" value={form.kode ?? ''} onChange={(e) => set('kode', e.target.value)} placeholder="cth: VPA" />
+            </Field>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <Field label="Tanggal Order">
               <input className="form-input" value={form.tanggalOrder ?? ''} onChange={(e) => set('tanggalOrder', e.target.value)} placeholder="DD/MM/YYYY" />
             </Field>
@@ -228,6 +230,15 @@ export default function OrderFormModal({ customerName, customers, initial, onSav
                 <option value="">-- Pilih --</option>
                 {SHAPE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
+            </Field>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="Bahan Rangka">
+              <input className="form-input" value={form.rangka ?? ''} onChange={(e) => set('rangka', e.target.value)} placeholder="cth: Emas 18K, Silver" />
+            </Field>
+            <Field label="Gramasi Rangka">
+              <input className="form-input" value={form.gramasiRangka ?? ''} onChange={(e) => set('gramasiRangka', e.target.value)} placeholder="cth: 1.5 g" />
             </Field>
           </div>
 
@@ -278,33 +289,23 @@ export default function OrderFormModal({ customerName, customers, initial, onSav
               value={form.keterangan ?? ''} onChange={(e) => set('keterangan', e.target.value)} placeholder="Catatan tambahan..." />
           </Field>
 
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-            <button type="button" className="btn btn-secondary" onClick={onClose}>Batal</button>
-            <button type="submit" className="btn btn-primary">
-              <Save size={14} /> {isEdit ? 'Simpan Perubahan' : 'Tambah Order'}
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+            {Object.keys(errors).length > 0 && (
+              <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent-red)', padding: '8px 12px', borderRadius: 8, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
+                ⚠️ Gagal menyimpan, mohon periksa isian yang wajib (ada teks merah di atas).
+              </div>
+            )}
+            <div className="modal-footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', padding: '16px 20px', borderTop: '1px solid var(--border)', marginTop: 10 }}>
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Batal</button>
+              <button type="submit" className="btn btn-primary">
+                <Save size={14} /> {isEdit ? 'Simpan Perubahan' : 'Tambah Order'}
+              </button>
+            </div>
           </div>
         </form>
       </div>
-      <style>{`
-        @keyframes modalIn { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:scale(1); } }
-        .form-input {
-          width:100%; background:#1a1a27; border:1px solid var(--border);
-          border-radius:8px; color:var(--text-primary); font-family:Inter,sans-serif;
-          font-size:13px; padding:8px 12px; outline:none; height:38px;
-          transition:border-color 0.15s, box-shadow 0.15s; box-sizing:border-box;
-          color-scheme: dark;
-        }
-        textarea.form-input { height:auto; }
-        select.form-input { -webkit-appearance:none; appearance:none;
-          background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-          background-repeat:no-repeat; background-position:right 10px center; padding-right:28px;
-        }
-        .form-input:focus { border-color:rgba(124,58,237,0.6); box-shadow:0 0 0 3px rgba(124,58,237,0.1); }
-        .form-input::placeholder { color:var(--text-muted); }
-        .form-input option { background:#1a1a27; color:var(--text-primary); }
-      `}</style>
-    </div>
+    </div>,
+    document.body
   );
 }
 

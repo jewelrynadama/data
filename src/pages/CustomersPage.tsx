@@ -1,20 +1,22 @@
 // src/pages/CustomersPage.tsx
 import { useState, useMemo } from 'react';
-import { Search, Eye } from 'lucide-react';
+import { Search, Eye, Wand2 } from 'lucide-react';
 import type { Customer, CustomerRow } from '../types';
 import { formatRupiah, parseDateToSortValue, getCustomerLabel } from '../utils/csvLoader';
 import CustomerDrawer from '../components/CustomerDrawer';
 import CustomerFormModal from '../components/CustomerFormModal';
+import AIMagicPasteModal from '../components/AIMagicPasteModal';
 import type { BirthdayAlert } from '../utils/birthday';
 import BirthdayBanner from '../components/BirthdayBanner';
 import { extractInstagramUsername, generateInstaLink } from '../utils/socialIntelligenceEngine';
 import { calcLoyalty } from '../utils/loyaltyEngine';
+import Customer360Modal from '../components/Customer360Modal';
 
 interface Props {
   customers: Customer[];
   searchQuery: string;
   onSearchChange: (v: string) => void;
-  onAddCustomer: (data: Partial<Customer> & { nama: string }) => void;
+  onAddCustomer: (data: Partial<Customer> & { nama: string; orders?: CustomerRow[] }) => void;
   onEditCustomer: (id: string, patch: Partial<Customer>) => void;
   onDeleteCustomer: (id: string) => void;
   onAddOrder: (order: Partial<CustomerRow>) => void;
@@ -62,6 +64,8 @@ export default function CustomersPage({
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(15);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showMagicPaste, setShowMagicPaste] = useState(false);
+  const [show360Customer, setShow360Customer] = useState<Customer | null>(null);
 
   // Sync selected customer with updated data from props
   const activeCustomer = useMemo(() => {
@@ -71,6 +75,13 @@ export default function CustomersPage({
 
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase();
+    if (q.includes(' or ')) {
+      const qs = q.split(' or ').map(x => x.trim()).filter(Boolean);
+      return customers.filter(c => qs.some(query => 
+        c.nama.toLowerCase().includes(query) ||
+        c.wa.toLowerCase().includes(query)
+      ));
+    }
     return customers.filter(
       (c) =>
         c.nama.toLowerCase().includes(q) ||
@@ -80,6 +91,23 @@ export default function CustomersPage({
         c.alamat.toLowerCase().includes(q)
     );
   }, [customers, searchQuery]);
+
+  const handleFindDuplicates = () => {
+    const waMap = new Map<string, Customer[]>();
+    for (const c of customers) {
+      if (!c.wa) continue;
+      const normalized = c.wa.replace(/\D/g, '');
+      if (normalized.length < 5) continue;
+      if (!waMap.has(normalized)) waMap.set(normalized, []);
+      waMap.get(normalized)!.push(c);
+    }
+    const dupes = Array.from(waMap.values()).filter(group => group.length > 1).flat().map(c => c.wa);
+    if (dupes.length === 0) {
+      alert('Tidy! Tidak ada duplikat berdasarkan nomor WA.');
+    } else {
+      onSearchChange(Array.from(new Set(dupes)).join(' OR '));
+    }
+  };
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
@@ -112,7 +140,7 @@ export default function CustomersPage({
 
   function SortIcon({ col }: { col: SortKey }) {
     if (sortKey !== col) return <span className="sort-arrow">↕</span>;
-    return <span className="sort-arrow" style={{ color: 'var(--accent-purple)' }}>{sortAsc ? '↑' : '↓'}</span>;
+    return <span className="sort-arrow" style={{ color: '#1877F2' }}>{sortAsc ? '↑' : '↓'}</span>;
   }
 
   const pageNums = useMemo(() => {
@@ -133,149 +161,6 @@ export default function CustomersPage({
     <>
       <div className="page-body">
         <BirthdayBanner alerts={birthdayAlerts} settings={settings} onSelectCustomer={onSelectCustomer} />
-        <style>{`
-          @media (max-width: 768px) {
-            .customers-table-wrapper { display: none !important; }
-            .customers-card-list { display: flex !important; }
-            .table-toolbar { flex-wrap: wrap !important; gap: 8px !important; }
-            .table-toolbar .search-box { flex: 1 1 100% !important; min-width: 0 !important; }
-            .table-toolbar .btn-primary { flex: 1 1 100% !important; }
-          }
-          @media (min-width: 769px) {
-            .customers-card-list { display: none !important; }
-            .customers-table-wrapper { display: block !important; }
-          }
-          .customers-card-list {
-            display: none;
-            flex-direction: column;
-            gap: 10px;
-            padding: 4px 0;
-          }
-          .cust-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            cursor: pointer;
-            transition: box-shadow 0.2s, border-color 0.2s;
-            -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
-          }
-          .cust-card:active {
-            box-shadow: 0 0 0 2px rgba(124,58,237,0.35);
-            border-color: rgba(124,58,237,0.4);
-          }
-          .cust-card-top {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-          }
-          .cust-card-avatar {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 13px;
-            font-weight: 700;
-            color: white;
-            flex-shrink: 0;
-          }
-          .cust-card-info {
-            flex: 1;
-            min-width: 0;
-          }
-          .cust-card-name {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--text-primary);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-          }
-          .cust-card-meta {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-top: 3px;
-            flex-wrap: wrap;
-          }
-          .cust-card-city {
-            font-size: 11px;
-            color: var(--text-muted);
-          }
-          .cust-card-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-          }
-          .cust-card-stat {
-            background: var(--bg-tertiary);
-            border-radius: 10px;
-            padding: 8px 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-          }
-          .cust-card-stat-label {
-            font-size: 9px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-          .cust-card-stat-val {
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--text-primary);
-          }
-          .cust-card-stat-val.green { color: var(--accent-green); }
-          .cust-card-stat-val.purple { color: var(--accent-purple); }
-          .cust-card-links {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-          }
-          .cust-card-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-size: 11px;
-            font-weight: 600;
-            text-decoration: none;
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
-          }
-          .cust-card-link-ig {
-            background: rgba(124,58,237,0.12);
-            color: var(--text-accent);
-          }
-          .cust-card-link-wa {
-            background: rgba(16,185,129,0.12);
-            color: var(--accent-green);
-          }
-          .cust-card-link-view {
-            background: rgba(100,116,139,0.12);
-            color: var(--text-secondary);
-            border: none;
-            cursor: pointer;
-            font-family: inherit;
-            margin-left: auto;
-          }
-          [data-theme='light'] .cust-card {
-            background: #ffffff;
-            border-color: #e2e8f0;
-          }
-          [data-theme='light'] .cust-card-stat {
-            background: #f1f5f9;
-          }
-        `}</style>
         <div className="card">
           {/* Toolbar */}
           <div className="table-toolbar" style={{ gap: 12 }}>
@@ -288,8 +173,31 @@ export default function CustomersPage({
               />
             </div>
             
-            <button className="btn btn-primary" onClick={() => setShowAddModal(true)} style={{ padding: '0 16px', height: 38 }}>
+            <button className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', border: 'none', gap: 6 }} onClick={() => setShowMagicPaste(true)}>
+              <Wand2 size={15} /> AI Magic Paste
+            </button>
+            <button className="btn btn-secondary" onClick={handleFindDuplicates} style={{ gap: 6 }}>
+              🔍 Cari Duplikat
+            </button>
+            <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
               + Add Customer
+            </button>
+            <button 
+              className="btn btn-secondary" 
+              onClick={() => {
+                if(window.confirm('PERINGATAN: Semua customer & pesanan yang ditambahkan manual (bukan dari Google Sheets) akan dihapus secara permanen. Anda yakin ingin mereset sesuai Spreadsheet?')) {
+                  import('../utils/localStore').then(({ clearManualAdditions }) => {
+                    clearManualAdditions();
+                    import('../utils/firebaseSync').then(({ clearManualAdditionsInFirestore }) => {
+                      clearManualAdditionsInFirestore().finally(() => {
+                        window.location.reload();
+                      });
+                    });
+                  });
+                }
+              }} 
+              style={{ background: '#ef4444', color: 'white', border: 'none' }}>
+              Reset to Spreadsheet
             </button>
 
             <div className="toolbar-spacer" />
@@ -356,10 +264,15 @@ export default function CustomersPage({
                               <span className="td-name" style={{ whiteSpace: 'nowrap' }}>{c.nama}</span>
                               {(() => {
                                 const lbl = getCustomerLabel(c.totalSpend, c.orderCount, settings?.vipMinSpend, settings?.loyalMinOrders);
-                                if (lbl === 'vip') return <span className="badge-customer-vip" style={{ fontSize: 9, padding: '1px 5px' }}>👑 VIP</span>;
-                                if (lbl === 'loyal') return <span className="badge-customer-loyal" style={{ fontSize: 9, padding: '1px 5px' }}>⭐ Loyal</span>;
-                                if (lbl === 'new') return <span className="badge-customer-new" style={{ fontSize: 9, padding: '1px 5px' }}>✨ Baru</span>;
-                                return null;
+                                const ltvLabel = c.totalSpend > 20000000 ? '🔥 High LTV' : c.totalSpend > 5000000 ? '📈 Med LTV' : null;
+                                return (
+                                  <>
+                                    {lbl === 'vip' && <span className="badge-customer-vip" style={{ fontSize: 9, padding: '1px 5px' }}>👑 VIP</span>}
+                                    {lbl === 'loyal' && <span className="badge-customer-loyal" style={{ fontSize: 9, padding: '1px 5px' }}>⭐ Loyal</span>}
+                                    {lbl === 'new' && <span className="badge-customer-new" style={{ fontSize: 9, padding: '1px 5px' }}>✨ Baru</span>}
+                                    {ltvLabel && <span className="badge-customer-loyal" style={{ fontSize: 9, padding: '1px 5px', marginLeft: 4, background: c.totalSpend > 20000000 ? '#ef4444' : '#f59e0b', color: 'white' }}>{ltvLabel}</span>}
+                                  </>
+                                );
                               })()}
                             </div>
                           </div>
@@ -443,7 +356,7 @@ export default function CustomersPage({
                           <span style={{
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                             width: 26, height: 26, borderRadius: 6,
-                            background: 'rgba(124,58,237,0.15)', color: 'var(--accent-purple)',
+                            background: 'rgba(24,119,242,0.12)', color: 'var(--accent-purple)',
                             fontSize: 12, fontWeight: 700,
                           }}>
                             {c.orderCount}
@@ -459,10 +372,20 @@ export default function CustomersPage({
                           </div>
                         </td>
                         <td>{c.lastOrder || '—'}</td>
-                        <td onClick={(e) => { e.stopPropagation(); onSelectCustomer(c); }}>
-                          <button className="btn btn-secondary" style={{ padding: '4px 10px' }}>
-                            <Eye size={13} /> View
-                          </button>
+                        <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ padding: '4px 8px', background: 'linear-gradient(135deg,rgba(124,58,237,0.15),rgba(6,182,212,0.1))', border: '1px solid rgba(124,58,237,0.3)' }}
+                              onClick={() => setShow360Customer(c)}
+                              title="Customer 360° View"
+                            >
+                              🧬 360°
+                            </button>
+                            <button className="btn btn-secondary" style={{ padding: '4px 10px' }} onClick={() => onSelectCustomer(c)}>
+                              <Eye size={13} /> View
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -620,6 +543,19 @@ export default function CustomersPage({
         />
       )}
 
+      {showMagicPaste && (
+        <AIMagicPasteModal
+          onClose={() => setShowMagicPaste(false)}
+          onAdd={(customerPatch, orderPatch) => {
+            onAddCustomer({
+              ...customerPatch,
+              orders: [{...orderPatch, id: `local-order-${Date.now()}`} as CustomerRow]
+            });
+            setShowMagicPaste(false);
+          }}
+        />
+      )}
+
       {showAddModal && (
         <CustomerFormModal
           onSave={(data) => {
@@ -627,6 +563,18 @@ export default function CustomersPage({
             setShowAddModal(false);
           }}
           onClose={() => setShowAddModal(false)}
+        />
+      )}
+
+      {show360Customer && (
+        <Customer360Modal
+          customer={show360Customer}
+          allCustomers={customers}
+          onClose={() => setShow360Customer(null)}
+          onNavigateToCustomer={(c) => {
+            setShow360Customer(null);
+            onSelectCustomer(c);
+          }}
         />
       )}
     </>

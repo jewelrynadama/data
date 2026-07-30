@@ -1,7 +1,7 @@
-// src/pages/AITrendsPage.tsx
 import React, { useState } from 'react';
-import { Sparkles, Activity, Zap, ShoppingBag, ExternalLink } from 'lucide-react';
-import { generateMarketAnalysis, parseSimpleMarkdown, fetchRealImages } from '../utils/aiEngine';
+import { Sparkles, Activity, Zap, ShoppingBag, ExternalLink, MessageCircle, Copy, Check } from 'lucide-react';
+import { generateMarketAnalysis, parseSimpleMarkdown, fetchRealImages, generateWACampaign } from '../utils/aiEngine';
+import type { Customer, CustomerRow } from '../types';
 
 const SCAN_STEPS = [
   "Inisiasi sistem AI Market Radar...",
@@ -13,14 +13,23 @@ const SCAN_STEPS = [
   "Selesai! Menampilkan hasil laporan..."
 ];
 
-export default function AITrendsPage() {
+interface Props {
+  customers?: Customer[];
+  rows?: CustomerRow[];
+}
+
+export default function AITrendsPage({ customers = [], rows = [] }: Props) {
   const [status, setStatus] = useState<'idle' | 'scanning' | 'results'>('idle');
   const [scanStep, setScanStep] = useState(0);
   const [aiResult, setAiResult] = useState('');
   const [realImages, setRealImages] = useState<{src: string, title: string}[]>([]);
   const [autoKeyword, setAutoKeyword] = useState('');
+  const [waModalOpen, setWaModalOpen] = useState(false);
+  const [waMessage, setWaMessage] = useState('');
+  const [isGeneratingWA, setIsGeneratingWA] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const runAnalysis = async () => {
+  const runAnalysis = async (useStoreData = false) => {
     setStatus('scanning');
     setScanStep(0);
     setAiResult('');
@@ -39,7 +48,7 @@ export default function AITrendsPage() {
 
     try {
       // Parallel execution for speed
-      const { analysis, keyword } = await generateMarketAnalysis();
+      const { analysis, keyword } = await generateMarketAnalysis(useStoreData ? { customers, rows } : undefined);
       setAutoKeyword(keyword);
       const images = await fetchRealImages(keyword);
       
@@ -54,8 +63,27 @@ export default function AITrendsPage() {
     }
   };
 
+  const handleGenerateWA = async () => {
+    setIsGeneratingWA(true);
+    setWaModalOpen(true);
+    try {
+      const plainTextAnalysis = aiResult.replace(/<[^>]*>?/gm, '').substring(0, 500);
+      const msg = await generateWACampaign(`Keyword Tren: ${autoKeyword}\nAnalisis: ${plainTextAnalysis}`);
+      setWaMessage(msg);
+    } catch (e) {
+      setWaMessage("Gagal generate WA.");
+    }
+    setIsGeneratingWA(false);
+  };
+  
+  const handleCopy = () => {
+    navigator.clipboard.writeText(waMessage);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   React.useEffect(() => {
-    runAnalysis();
+    runAnalysis(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -202,15 +230,27 @@ export default function AITrendsPage() {
                 Data ditarik secara real-time dari engine AI, mensimulasikan pencarian produk paling laku di platform e-commerce Indonesia saat ini.
               </p>
             </div>
-            <button 
-              onClick={runAnalysis}
-              disabled={status === 'scanning'}
-              className="ai-btn"
-              style={{ opacity: status === 'scanning' ? 0.7 : 1 }}
-            >
-              {status === 'scanning' ? <Activity size={16} /> : <Zap size={16} />}
-              {status === 'scanning' ? 'Memindai...' : 'Refresh Data Market'}
-            </button>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <button 
+                onClick={() => runAnalysis(false)}
+                disabled={status === 'scanning'}
+                className="ai-btn"
+                style={{ opacity: status === 'scanning' ? 0.7 : 1, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+              >
+                {status === 'scanning' ? <Activity size={16} /> : <Zap size={16} />}
+                {status === 'scanning' ? 'Memindai...' : 'Refresh Data Market'}
+              </button>
+              
+              <button 
+                onClick={() => runAnalysis(true)}
+                disabled={status === 'scanning'}
+                className="ai-btn"
+                style={{ opacity: status === 'scanning' ? 0.7 : 1 }}
+              >
+                {status === 'scanning' ? <Activity size={16} /> : <Zap size={16} />}
+                Analisis dengan Data Toko
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -271,8 +311,15 @@ export default function AITrendsPage() {
 
               {/* Marketplace Links */}
               <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Cari Langsung di Marketplace:</h3>
+                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Tindak Lanjut & Cari di Marketplace:</h3>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <button 
+                    onClick={handleGenerateWA}
+                    className="btn btn-primary"
+                    style={{ background: '#25D366', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <MessageCircle size={14} /> Buat Kampanye dari Tren Ini
+                  </button>
                   <a 
                     href={`https://shopee.co.id/search?keyword=${encodeURIComponent(autoKeyword)}`} 
                     target="_blank" 
@@ -293,6 +340,33 @@ export default function AITrendsPage() {
                   </a>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WA Modal */}
+      {waModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg-card)', padding: 24, borderRadius: 16, width: '90%', maxWidth: 500, boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MessageCircle size={20} color="#25D366" />
+                Draft Kampanye WA
+              </h3>
+              <button onClick={() => setWaModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--text-muted)' }}>&times;</button>
+            </div>
+            
+            <div style={{ background: 'var(--bg-secondary)', borderRadius: 12, padding: 16, minHeight: 150, fontSize: 14, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+              {isGeneratingWA ? 'Menghasilkan draf menggunakan AI...' : waMessage}
+            </div>
+
+            <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button onClick={() => setWaModalOpen(false)} className="btn btn-secondary">Tutup</button>
+              <button onClick={handleCopy} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6, background: copied ? '#10b981' : 'var(--accent-purple)' }} disabled={isGeneratingWA}>
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {copied ? 'Tersalin!' : 'Salin Pesan'}
+              </button>
             </div>
           </div>
         </div>

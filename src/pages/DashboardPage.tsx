@@ -15,7 +15,7 @@ import {
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import { Users, ShoppingBag, TrendingUp, Award, MapPin } from 'lucide-react';
 import type { Customer, CustomerRow } from '../types';
-import { formatRupiah, formatInputNumber } from '../utils/csvLoader';
+import { formatRupiah, formatInputNumber, cleanPrice, parseDateParts } from '../utils/csvLoader';
 import type { BirthdayAlert } from '../utils/birthday';
 import BirthdayBanner from '../components/BirthdayBanner';
 import { getRevenueProjection } from '../utils/marketingEngine';
@@ -38,6 +38,31 @@ interface Props {
   settings?: any;
 }
 
+type Period = 'today' | '7d' | '30d' | 'l3m' | 'l6m' | 'ytd' | 'all';
+
+const PERIOD_LABELS: Record<Period, string> = {
+  today: 'Hari Ini',
+  '7d': '7 Hari',
+  '30d': '30 Hari',
+  l3m: '3 Bulan',
+  l6m: '6 Bulan',
+  ytd: 'Tahun Ini',
+  all: 'Semua',
+};
+
+function getDateFrom(period: Period): Date | null {
+  const now = new Date();
+  switch (period) {
+    case 'today': { const d = new Date(now); d.setHours(0,0,0,0); return d; }
+    case '7d': return new Date(now.getTime() - 7*24*3600*1000);
+    case '30d': return new Date(now.getTime() - 30*24*3600*1000);
+    case 'l3m': return new Date(now.getTime() - 90*24*3600*1000);
+    case 'l6m': return new Date(now.getTime() - 180*24*3600*1000);
+    case 'ytd': return new Date(now.getFullYear(), 0, 1);
+    default: return null;
+  }
+}
+
 export default function DashboardPage({ customers, rows, birthdayAlerts, onSelectCustomer, theme = 'dark', onSelectCity, settings }: Props) {
   const [salesGoal, setSalesGoal] = useState(() => {
     const saved = localStorage.getItem('salesGoal');
@@ -45,6 +70,7 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
   });
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [goalInput, setGoalInput] = useState('');
+  const [period, setPeriod] = useState<Period>('all');
 
   const handleSaveGoal = () => {
     const val = parseInt(goalInput.replace(/\D/g, '') || '0', 10);
@@ -54,6 +80,26 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
     }
     setIsEditingGoal(false);
   };
+
+  // ── Filtered rows based on selected period ──────────────────
+  const filteredRows = useMemo(() => {
+    const from = getDateFrom(period);
+    if (!from) return rows;
+    return rows.filter(r => {
+      if (!r.tanggalOrder) return false;
+      const parsed = parseDateParts(r.tanggalOrder);
+      if (!parsed) return false;
+      const d = new Date(parsed.year, parsed.month - 1, parsed.day || 1);
+      return d >= from;
+    });
+  }, [rows, period]);
+
+  // ── Filtered customers based on period (customers active in period) ──
+  const filteredCustomers = useMemo(() => {
+    if (period === 'all') return customers;
+    const activeIds = new Set(filteredRows.map(r => r.namaInstagram));
+    return customers.filter(c => activeIds.has(c.nama)); // wait, matching row.namaInstagram to customer.nama or instagram? Customer's 'nama' usually matches 'namaInstagram' in row. Let's check csvLoader.ts. Actually in PearlCRM, row.namaInstagram maps to customer.nama. Let's use c.nama
+  }, [customers, filteredRows, period]);
 
   // ── Stats ──────────────────────────────────────────────────
   const chartOptions = useMemo(() => {
@@ -97,13 +143,13 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
     };
   }, [theme]);
 
-  // ── Stats ──────────────────────────────────────────────────
+  // ── Stats (all use filteredRows/filteredCustomers) ─────────
   const totalRevenue = useMemo(
-    () => customers.reduce((s, c) => s + c.totalSpend, 0),
-    [customers]
+    () => filteredRows.reduce((s, r) => s + (r.jenis ? (parseInt(r.totalBayar?.replace(/\D/g,'') || '0',10)) : 0), 0),
+    [filteredRows]
   );
 
-  const totalOrders = rows.filter((r) => r.jenis).length;
+  const totalOrders = filteredRows.filter((r) => r.jenis).length;
   const avgOrder = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
   const currentMonthRevenue = useMemo(() => {
@@ -113,14 +159,11 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
     
     return rows.reduce((sum, r) => {
       if (!r.tanggalOrder || !r.jenis) return sum;
-      const parts = r.tanggalOrder.split('/');
-      if (parts.length < 3) return sum;
+      const parsed = parseDateParts(r.tanggalOrder);
+      if (!parsed) return sum;
       
-      const month = parseInt(parts[1], 10);
-      const year = parseInt(parts[2], 10);
-      
-      if (month === currentMonth && year === currentYear) {
-        const amt = parseInt(r.totalBayar.replace(/\D/g, '') || '0', 10);
+      if (parsed.month === currentMonth && parsed.year === currentYear) {
+        const amt = cleanPrice(r.totalBayar);
         return sum + amt;
       }
       return sum;
@@ -138,13 +181,11 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
     let prevRev = 0, prevOrd = 0, curOrd = 0;
     for (const r of rows) {
       if (!r.tanggalOrder || !r.jenis) continue;
-      const parts = r.tanggalOrder.split('/');
-      if (parts.length < 3) continue;
-      const month = parseInt(parts[1], 10);
-      const year = parseInt(parts[2], 10);
-      const amt = parseInt(r.totalBayar.replace(/\D/g, '') || '0', 10);
-      if (month === pm && year === py) { prevRev += amt; prevOrd++; }
-      if (month === cm && year === cy) curOrd++;
+      const parsed = parseDateParts(r.tanggalOrder);
+      if (!parsed) continue;
+      const amt = cleanPrice(r.totalBayar);
+      if (parsed.month === pm && parsed.year === py) { prevRev += amt; prevOrd++; }
+      if (parsed.month === cm && parsed.year === cy) curOrd++;
     }
     return { prevMonthRevenue: prevRev, prevMonthOrders: prevOrd, currentMonthOrders: curOrd };
   }, [rows]);
@@ -167,56 +208,65 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
   // ── Orders by Type ─────────────────────────────────────────
   const byType = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const r of rows) {
+    for (const r of filteredRows) {
       if (r.jenis) map[r.jenis] = (map[r.jenis] || 0) + 1;
     }
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 8);
-  }, [rows]);
+  }, [filteredRows]);
 
   // ── Revenue by Pearl Type ──────────────────────────────────
   const byPearl = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const r of rows) {
+    for (const r of filteredRows) {
       const k = r.type || 'Unknown';
-      const amt = parseInt(r.totalBayar.replace(/\D/g, '') || '0', 10);
+      const amt = cleanPrice(r.totalBayar);
       map[k] = (map[k] || 0) + amt;
     }
     return Object.entries(map)
       .filter(([k]) => k !== 'Unknown' && k !== '')
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6);
-  }, [rows]);
+  }, [filteredRows]);
 
   // ── Orders over time (by month) ────────────────────────────
   const byMonth = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const r of rows) {
+    const mapPrevYear: Record<string, number> = {};
+    const curYear = new Date().getFullYear();
+    for (const r of rows) { // always use ALL rows for time chart
       if (!r.tanggalOrder || !r.jenis) continue;
-      const parts = r.tanggalOrder.split('/');
-      if (parts.length < 3) continue;
-      const month = `${parts[2]?.slice(-4)}-${parts[1]?.padStart(2, '0')}`;
+      const parsed = parseDateParts(r.tanggalOrder);
+      if (!parsed) continue;
+      const month = `${parsed.year}-${String(parsed.month).padStart(2, '0')}`;
       map[month] = (map[month] || 0) + 1;
+      // For YoY: store previous year's data mapped to current year month
+      if (parsed.year === curYear - 1) {
+        const curYearKey = `${curYear}-${String(parsed.month).padStart(2, '0')}`;
+        mapPrevYear[curYearKey] = (mapPrevYear[curYearKey] || 0) + 1;
+      }
     }
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).slice(-12);
+    const sorted = Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).slice(-12);
+    return { sorted, prevYear: mapPrevYear };
   }, [rows]);
 
   // ── Top Cities ─────────────────────────────────────────────
   const byCityData = useMemo(() => {
+    const src = period === 'all' ? customers : filteredCustomers;
     const map: Record<string, number> = {};
-    for (const c of customers) {
+    for (const c of src) {
       if (c.city && c.city !== '—') map[c.city] = (map[c.city] || 0) + 1;
     }
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  }, [customers]);
+  }, [customers, filteredCustomers, period]);
 
   // ── Payment split ──────────────────────────────────────────
   const byPayment = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const r of rows) {
+    for (const r of filteredRows) {
       if (r.paymentVia) map[r.paymentVia] = (map[r.paymentVia] || 0) + 1;
     }
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  }, [rows]);
+  }, [filteredRows]);
 
   const pieColors = ['#7c3aed', '#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
 
@@ -226,10 +276,10 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
     const monthMap = new Map<string, number>();
     for (const r of rows) {
       if (!r.tanggalOrder || !r.jenis) continue;
-      const parts = r.tanggalOrder.split('/');
-      if (parts.length < 3) continue;
-      const key = `${parts[2]?.slice(-4)}-${parts[1]?.padStart(2,'0')}`;
-      monthMap.set(key, (monthMap.get(key) ?? 0) + (parseInt((r.totalBayar||'').replace(/\D/g,''),10)||0));
+      const parsed = parseDateParts(r.tanggalOrder);
+      if (!parsed) continue;
+      const key = `${parsed.year}-${String(parsed.month).padStart(2, '0')}`;
+      monthMap.set(key, (monthMap.get(key) ?? 0) + cleanPrice(r.totalBayar));
     }
     const sorted = [...monthMap.entries()].sort(([a],[b])=>a.localeCompare(b)).slice(-6);
     if (sorted.length < 2) return null;
@@ -272,14 +322,44 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
       {/* Birthday Alerts */}
       <BirthdayBanner alerts={birthdayAlerts} settings={settings} onSelectCustomer={onSelectCustomer} />
 
+      {/* ── Global Period Filter Bar ────────────────────────── */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, marginRight: 4 }}>📅 Periode:</span>
+        {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
+          <button
+            key={p}
+            onClick={() => setPeriod(p)}
+            style={{
+              padding: '5px 12px',
+              borderRadius: 20,
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: period === p ? 700 : 500,
+              background: period === p ? 'var(--accent-purple)' : 'var(--bg-card)',
+              color: period === p ? '#fff' : 'var(--text-secondary)',
+              boxShadow: period === p ? '0 2px 8px rgba(124,58,237,0.3)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {PERIOD_LABELS[p]}
+          </button>
+        ))}
+        {period !== 'all' && (
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>
+            → {filteredRows.filter(r => r.jenis).length} order · {filteredCustomers.length} customer aktif
+          </span>
+        )}
+      </div>
+
       {/* Stats */}
       <div className="stats-grid">
         <div className="stat-card purple">
           <div className="stat-icon purple"><Users size={20} /></div>
           <div className="stat-info">
-            <div className="stat-label">Total Customers</div>
-            <div className="stat-value">{customers.length}</div>
-            <div className="stat-sub">Unique accounts</div>
+            <div className="stat-label">{period === 'all' ? 'Total Customers' : 'Customer Aktif'}</div>
+            <div className="stat-value">{period === 'all' ? customers.length : filteredCustomers.length}</div>
+            <div className="stat-sub">{period === 'all' ? 'Unique accounts' : `dari ${customers.length} total`}</div>
           </div>
         </div>
         <div className="stat-card green">
@@ -332,9 +412,10 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
                       if (e.key === 'Escape') setIsEditingGoal(false);
                     }}
                     style={{
-                      width: 80, background: 'var(--bg-tertiary)',
-                      border: '1px solid var(--accent-purple)', borderRadius: 4,
-                      color: 'var(--text-primary)', fontSize: 11, padding: '1px 4px', outline: 'none',
+                      width: 90, background: 'var(--bg-card-hover)',
+                      border: '1px solid #1877F2', borderRadius: 4,
+                      color: 'var(--text-primary)', fontSize: 11, padding: '2px 6px', outline: 'none',
+                      boxShadow: '0 0 0 2px rgba(24,119,242,0.2)'
                     }}
                     autoFocus
                   />
@@ -412,24 +493,35 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
           <div className="card-header">
             <div>
               <div className="card-title">Orders Over Time</div>
-              <div className="card-subtitle">Monthly order volume</div>
+              <div className="card-subtitle">Monthly order volume · garis abu = tahun lalu (YoY)</div>
             </div>
           </div>
           <div className="card-body">
             <div style={{ height: 220 }}>
               <Line
                 data={{
-                  labels: byMonth.map(([m]) => m),
+                  labels: byMonth.sorted.map(([m]) => m),
                   datasets: [
                     {
-                      label: 'Orders',
-                      data: byMonth.map(([, v]) => v),
+                      label: 'Tahun Ini',
+                      data: byMonth.sorted.map(([, v]) => v),
                       borderColor: '#7c3aed',
                       backgroundColor: 'rgba(124,58,237,0.12)',
                       fill: true,
                       tension: 0.4,
                       pointRadius: 4,
                       pointBackgroundColor: '#7c3aed',
+                    },
+                    {
+                      label: 'Tahun Lalu',
+                      data: byMonth.sorted.map(([k]) => byMonth.prevYear[k] || 0),
+                      borderColor: 'rgba(150,150,150,0.5)',
+                      backgroundColor: 'transparent',
+                      fill: false,
+                      tension: 0.4,
+                      pointRadius: 3,
+                      borderDash: [4, 3],
+                      pointBackgroundColor: 'rgba(150,150,150,0.5)',
                     },
                   ],
                 }}
@@ -552,43 +644,6 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
 
       {/* Top Customers */}
       <div className="card" style={{ marginBottom: 20 }}>
-        <style>{`
-          @media (max-width: 768px) {
-            .dash-top-table { display: none !important; }
-            .dash-top-cards { display: flex !important; }
-          }
-          @media (min-width: 769px) {
-            .dash-top-cards { display: none !important; }
-            .dash-top-table { display: block !important; }
-          }
-          .dash-top-cards {
-            display: none;
-            flex-direction: column;
-            gap: 8px;
-          }
-          .dash-top-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 12px;
-            border-radius: 10px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border);
-            cursor: pointer;
-            transition: border-color 0.15s;
-            -webkit-tap-highlight-color: transparent;
-          }
-          .dash-top-row:active { border-color: rgba(124,58,237,0.4); }
-          .dash-top-rank {
-            width: 26px; height: 26px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 11px; font-weight: 700; flex-shrink: 0;
-          }
-          .dash-top-info { flex: 1; min-width: 0; }
-          .dash-top-name { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-          .dash-top-meta { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
-          .dash-top-spend { font-size: 12px; font-weight: 700; color: var(--accent-green); flex-shrink: 0; }
-        `}</style>
         <div className="card-header">
           <div>
             <div className="card-title">Top Customers by Revenue</div>

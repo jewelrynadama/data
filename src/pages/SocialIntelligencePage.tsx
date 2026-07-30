@@ -1,22 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Globe, Send, Check, ExternalLink,
-  Plane, Award, HeartHandshake, Gift, ShieldAlert,
-  Copy, RefreshCw, Trash2, Settings,
-  Calendar, ChevronLeft, ChevronRight, User
+  Send, Check, ExternalLink, Copy,
+  Calendar, ChevronLeft, ChevronRight, User, Plus, X, Loader2
 } from 'lucide-react';
+
+interface CustomReminder {
+  id: string;
+  customerId: string;
+  date: string;
+  type: string;
+  note: string;
+}
 import type { Customer, CustomerRow } from '../types';
-import {
-  scanSocialFeeds,
-  generateInstaLink,
-  generateSuggestedMessage,
-  logSocialEvent,
-  dismissSocialEvent,
-  extractInstagramUsername,
-  type SocialEvent
-} from '../utils/socialIntelligenceEngine';
+import { generateInstaLink } from '../utils/socialIntelligenceEngine';
 import { parseBirthdayMonth, parseBirthdayDay } from '../utils/birthday';
-import { TAMPERMONKEY_SCRIPT_CODE } from '../utils/instagramUserScript';
 
 interface Props {
   customers: Customer[];
@@ -68,11 +65,24 @@ const DEFAULT_BIRTHDAY_TEMPLATE = `🎂 Selamat Ulang Tahun Kak {customerName}! 
 const DEFAULT_ANNIVERSARY_TEMPLATE = `Halo Kak {customerName}! Salam hangat dari {storeName}. Hari ini bertepatan dengan {yearsStr} sejak Kakak mengorder {productName} di toko kami lho. 😍\n\nSemoga perhiasannya awet, selalu berkilau, dan menemani hari-hari indah Kakak ya! Terima kasih banyak sudah menjadi pelanggan setia kami. ✨💎`;
 
 export default function SocialIntelligencePage({ customers, settings, onSelectCustomer }: Props) {
-  const [activeTab, setActiveTab] = useState<'radar' | 'calendar' | 'automation'>('radar');
-  const [events, setEvents] = useState<SocialEvent[]>([]);
   const [copied, setCopied] = useState<Record<string, boolean>>({});
-  const [isScanning, setIsScanning] = useState(true);
-  const [scriptCopied, setScriptCopied] = useState(false);
+  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+  const [reminders, setReminders] = useState<CustomReminder[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('pearlcrm_custom_reminders') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [showReminderForm, setShowReminderForm] = useState<{ customerId: string, customerName: string } | null>(null);
+  const [reminderType, setReminderType] = useState('Service Perhiasan');
+  const [reminderDate, setReminderDate] = useState('');
+  const [reminderNote, setReminderNote] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('pearlcrm_custom_reminders', JSON.stringify(reminders));
+  }, [reminders]);
 
   const storeName = settings?.storeName || 'Pearl Store';
 
@@ -90,13 +100,14 @@ export default function SocialIntelligencePage({ customers, settings, onSelectCu
 
   const calendarEvents = useMemo(() => {
     const list: {
-      type: 'birthday' | 'anniversary';
+      type: 'birthday' | 'anniversary' | 'reminder';
       customer: Customer;
       day: number;
       label: string;
       detail: string;
       message: string;
       orderRow?: CustomerRow;
+      id?: string;
     }[] = [];
     const targetMonth = currentMonth + 1; // 1-indexed
 
@@ -153,8 +164,26 @@ export default function SocialIntelligencePage({ customers, settings, onSelectCu
       });
     });
 
+    reminders.forEach(r => {
+      const rd = parseDayMonth(r.date);
+      if (rd && rd.month === targetMonth && rd.year === currentYear) {
+        const c = customers.find(c => c.id === r.customerId);
+        if (c) {
+          list.push({
+            type: 'reminder',
+            customer: c,
+            day: rd.day,
+            label: r.type,
+            detail: r.note,
+            message: `Halo Kak ${c.nama},\n\nMengingatkan tentang ${r.type}: ${r.note}.\n\nSalam hangat,\n💎 ${storeName}`,
+            id: r.id
+          });
+        }
+      }
+    });
+
     return list;
-  }, [customers, currentMonth, currentYear, storeName, settings]);
+  }, [customers, currentMonth, currentYear, storeName, settings, reminders]);
 
   const [selectedDayEvents, setSelectedDayEvents] = useState<{
     day: number;
@@ -212,76 +241,6 @@ export default function SocialIntelligencePage({ customers, settings, onSelectCu
     });
   };
 
-  // Load events
-  const reloadEvents = () => {
-    const results = scanSocialFeeds(customers, storeName);
-    setEvents(results);
-  };
-
-  useEffect(() => {
-    setIsScanning(true);
-    const timer = setTimeout(() => {
-      reloadEvents();
-      setIsScanning(false);
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, [customers, storeName]);
-
-
-
-  // Listen to incoming events injected by Tampermonkey
-  useEffect(() => {
-    const handleInjectedEvents = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const injectedList = customEvent.detail;
-      if (!Array.isArray(injectedList)) return;
-
-      let hasNew = false;
-      injectedList.forEach((ev: any) => {
-        const logged = logSocialEvent(
-          customers,
-          ev.customerId,
-          ev.type,
-          ev.title,
-          ev.detail ? `Keterangan: ${ev.detail} (Deteksi Instagram Web)` : 'Terdeteksi dari Instagram Web.',
-          generateSuggestedMessage(
-            customers.find(c => c.id === ev.customerId)?.nama || '',
-            ev.type,
-            ev.detail,
-            storeName
-          ),
-          ev.riskLevel || 'low'
-        );
-        if (logged) hasNew = true;
-      });
-
-      if (hasNew) {
-        reloadEvents();
-      }
-    };
-
-    window.addEventListener('pearlcrm:inject_events', handleInjectedEvents);
-    return () => {
-      window.removeEventListener('pearlcrm:inject_events', handleInjectedEvents);
-    };
-  }, [customers, storeName]);
-
-  // Trigger OSINT scan
-  const triggerSimulation = async () => {
-    setIsScanning(true);
-    // Clear cache first to force seeding
-    localStorage.removeItem('pearlcrm_social_events_cache');
-    
-    // Call OSINT
-    const engine = await import('../utils/socialIntelligenceEngine');
-    const newEvents = await engine.performOSINTScan(customers, storeName);
-    
-    engine.saveEventsToStorage(newEvents);
-    
-    setEvents(newEvents);
-    setIsScanning(false);
-  };
-
   async function handleCopy(key: string, text: string) {
     const ok = await copyText(text);
     if (ok) {
@@ -290,29 +249,8 @@ export default function SocialIntelligencePage({ customers, settings, onSelectCu
     }
   }
 
-  const handleDismiss = (id: string) => {
-    const updated = dismissSocialEvent(id, customers);
-    setEvents(updated);
-  };
-
-  const copyScriptCode = async () => {
-    const ok = await copyText(TAMPERMONKEY_SCRIPT_CODE);
-    if (ok) {
-      setScriptCopied(true);
-      setTimeout(() => setScriptCopied(false), 2000);
-    }
-  };
-
-  const EVENT_META = {
-    vacation:    { icon: <Plane size={20} />, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
-    achievement: { icon: <Award size={20} />, color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-    birthday:    { icon: <Gift size={20} />, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-    grieving:    { icon: <HeartHandshake size={20} />, color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
-  };
-
   return (
-    <div className="page-container-scroll" style={{ flex: 1, overflowY: 'auto' }}>
-      <div className="page-body" style={{ position: 'relative' }}>
+    <div className="page-body">
         
         <style>{`
           @keyframes pulse {
@@ -459,269 +397,8 @@ export default function SocialIntelligencePage({ customers, settings, onSelectCu
           }
         `}</style>
         
-        {/* ── Tabs Navigator Header ── */}
-        <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 10, fontWeight: 800, background: 'rgba(124,58,237,0.15)', color: '#a78bfa', padding: '2px 8px', borderRadius: 12, border: '1px solid rgba(124,58,237,0.3)' }}>
-              🟢 RADAR ACTIVE
-            </span>
-          </div>
-
-          {/* Tabs Navigation */}
-          <div style={{ display: 'flex', background: 'var(--bg-input)', padding: 4, borderRadius: 10, border: '1px solid var(--border)' }}>
-            <button
-              onClick={() => setActiveTab('radar')}
-              style={{
-                border: 'none',
-                padding: '6px 12px',
-                fontSize: 12,
-                fontWeight: 700,
-                borderRadius: 8,
-                cursor: 'pointer',
-                background: activeTab === 'radar' ? 'var(--bg-secondary)' : 'transparent',
-                color: activeTab === 'radar' ? 'var(--text-primary)' : 'var(--text-muted)',
-                boxShadow: activeTab === 'radar' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
-                transition: 'all 0.2s'
-              }}
-            >
-              Momen Sosial
-            </button>
-            <button
-              onClick={() => setActiveTab('calendar')}
-              style={{
-                border: 'none',
-                padding: '6px 12px',
-                fontSize: 12,
-                fontWeight: 700,
-                borderRadius: 8,
-                cursor: 'pointer',
-                background: activeTab === 'calendar' ? 'var(--bg-secondary)' : 'transparent',
-                color: activeTab === 'calendar' ? 'var(--text-primary)' : 'var(--text-muted)',
-                boxShadow: activeTab === 'calendar' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
-                transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6
-              }}
-            >
-              <Calendar size={14} /> Kalender Momen
-            </button>
-            <button
-              onClick={() => setActiveTab('automation')}
-              style={{
-                border: 'none',
-                padding: '6px 12px',
-                fontSize: 12,
-                fontWeight: 700,
-                borderRadius: 8,
-                cursor: 'pointer',
-                background: activeTab === 'automation' ? 'var(--bg-secondary)' : 'transparent',
-                color: activeTab === 'automation' ? 'var(--text-primary)' : 'var(--text-muted)',
-                boxShadow: activeTab === 'automation' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
-                transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6
-              }}
-            >
-              <Settings size={14} /> Auto-Scan (Tampermonkey)
-            </button>
-          </div>
-        </div>
-
-        {/* ── Tab Content: Radar Momen ── */}
-        {activeTab === 'radar' && (
-          <div>
-            {/* Action Toolbar */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-              <button onClick={triggerSimulation} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '10px 16px' }}>
-                <RefreshCw size={15} /> Simulasikan Scan AI
-              </button>
-            </div>
-
-            {isScanning ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 350, gap: 16 }}>
-                <div className="spinner" style={{ width: 36, height: 36, border: '4px solid var(--border)', borderTopColor: '#7c3aed', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Menganalisis radar media sosial...</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Mencari sinyal liburan, perayaan, duka, dan ulang tahun.</div>
-              </div>
-            ) : events.length === 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24 }}>
-                
-                {/* Receiver telemetry status card */}
-                <div className="card" style={{ padding: 24, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
-
-                  
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'rgba(16,185,129,0.1)', padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(16,185,129,0.2)', marginBottom: 20 }}>
-                    <div className="pulse-dot" />
-                    <span style={{ fontSize: 11, fontWeight: 800, color: '#10b981', letterSpacing: 0.5, textTransform: 'uppercase' }}>Receiver Active</span>
-                  </div>
-
-                  <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>Mendengarkan Sinyal Tampermonkey</h3>
-                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: 360, margin: '0 auto' }}>
-                    Ketika Anda membuka Instagram Web dan berselancar di profil pelanggan terdaftar, momen sosial yang Anda catat akan otomatis ditangkap di sini secara instan.
-                  </p>
-                  
-                  <div style={{ marginTop: 24, fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-input)', padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)' }}>
-                    Menunggu pengiriman data dari <code>instagram.com</code>...
-                  </div>
-                </div>
-
-                {/* Monitored customers list card */}
-                <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 300 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>
-                    Daftar Akun yang Dipantau ({customers.filter(c => c.instagram && c.instagram.trim() !== '' && c.instagram !== '-').length})
-                  </div>
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 16px 0' }}>
-                    Klik pada akun pelanggan di bawah untuk membuka Instagram mereka dan mencatat momen sosial secara langsung via banner extension.
-                  </p>
-                  
-                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 200, paddingRight: 6 }}>
-                    {customers
-                      .filter(c => c.instagram && c.instagram.trim() !== '' && c.instagram !== '-')
-                      .map(c => {
-                        const username = extractInstagramUsername(c.instagram);
-                        return (
-                          <a
-                            key={c.id}
-                            href={generateInstaLink(c.instagram, c.nama)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              fontSize: 11,
-                              background: 'var(--bg-input)',
-                              border: '1px solid var(--border)',
-                              color: 'var(--text-secondary)',
-                              padding: '5px 10px',
-                              borderRadius: 6,
-                              textDecoration: 'none',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              fontWeight: 600,
-                              transition: 'all 0.2s'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.borderColor = '#7c3aed';
-                              e.currentTarget.style.background = 'rgba(124,58,237,0.08)';
-                              e.currentTarget.style.color = 'var(--accent-purple)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.borderColor = 'var(--border)';
-                              e.currentTarget.style.background = 'var(--bg-input)';
-                              e.currentTarget.style.color = 'var(--text-secondary)';
-                            }}
-                          >
-                            @{username} <ExternalLink size={10} />
-                          </a>
-                        );
-                      })}
-                  </div>
-                </div>
-
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: 16 }}>
-                {events.map((ev) => {
-                  const meta = EVENT_META[ev.type] || { icon: <Globe size={20} />, color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' };
-                  return (
-                    <div key={ev.id} className="card" style={{ display: 'flex', flexDirection: 'column', position: 'relative', borderTop: ev.riskLevel === 'high' ? '3px solid #ef4444' : undefined }}>
-                      
-                      {/* Close/Dismiss Button */}
-                      <button
-                        onClick={() => handleDismiss(ev.id)}
-                        style={{
-                          position: 'absolute',
-                          top: 12,
-                          right: 12,
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          cursor: 'pointer',
-                          padding: 4,
-                          borderRadius: 4
-                        }}
-                        title="Hapus Momen"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-
-                      {/* Card Body */}
-                      <div className="card-body" style={{ padding: '16px', flex: 1 }}>
-                        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                          <div style={{ width: 44, height: 44, borderRadius: '50%', background: meta.bg, color: meta.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid ' + meta.color + '33' }}>
-                            {meta.icon}
-                          </div>
-                          
-                          <div style={{ flex: 1, minWidth: 0, paddingRight: 16 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{ev.customer.nama}</div>
-                            </div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>Dideteksi: {ev.dateDetected}</div>
-                            
-                            <div style={{ fontSize: 13, fontWeight: 700, color: meta.color, marginBottom: 4 }}>{ev.title}</div>
-                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{ev.context}</div>
-
-                            {ev.riskLevel === 'high' && (
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '4px 10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 20, color: '#ef4444', fontSize: 10, fontWeight: 700 }}>
-                                <ShieldAlert size={12} />
-                                AUTO-MUTE PROMO 30 HARI
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* AI Suggested Message */}
-                        <div style={{ marginTop: 16, padding: '12px', background: 'var(--bg-input)', borderRadius: 10, border: '1px dashed var(--border)' }}>
-                          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Draft Pesan Empati</div>
-                          <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.6 }}>
-                            "{ev.suggestedMessage}"
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Bottom Action Bar */}
-                      <div style={{ padding: '12px 16px', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, borderRadius: '0 0 16px 16px' }}>
-                        <a
-                          href={generateInstaLink(ev.customer.instagram, ev.customer.nama)}
-                          target="_blank" rel="noopener noreferrer"
-                          className="btn btn-secondary"
-                          style={{ flex: 1, fontSize: 12, padding: '8px', justifyContent: 'center' }}
-                        >
-                          <ExternalLink size={14} /> Buka Instagram
-                        </a>
-                        
-                        {ev.customer.wa ? (
-                          <a
-                            href={'https://wa.me/' + ev.customer.wa.replace(/\D/g, '') + '?text=' + encodeURIComponent(ev.suggestedMessage)}
-                            target="_blank" rel="noopener noreferrer"
-                            className="btn btn-primary"
-                            style={{ flex: 1.5, fontSize: 12, padding: '8px', justifyContent: 'center', background: '#25D366', color: '#fff', border: 'none' }}
-                          >
-                            <Send size={14} /> Kirim WhatsApp
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => handleCopy(ev.id, ev.suggestedMessage)}
-                            className="btn btn-primary"
-                            style={{ flex: 1.5, fontSize: 12, padding: '8px', justifyContent: 'center' }}
-                          >
-                            {copied[ev.id] ? <Check size={14} /> : <Send size={14} />} 
-                            {copied[ev.id] ? 'Tersalin' : 'Salin Pesan'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Tab Content: Kalender Momen ── */}
-        {activeTab === 'calendar' && (
-          <div className="calendar-layout">
+        {/* ── Kalender Momen ── */}
+        <div className="calendar-layout">
             
             {/* Left Box: Calendar Grid */}
             <div className="calendar-container">
@@ -798,8 +475,8 @@ export default function SocialIntelligencePage({ customers, settings, onSelectCu
                                 fontWeight: 700,
                                 padding: '2px 4px',
                                 borderRadius: 4,
-                                background: ev.type === 'birthday' ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.12)',
-                                color: ev.type === 'birthday' ? '#d97706' : '#059669',
+                                background: ev.type === 'birthday' ? 'rgba(245,158,11,0.12)' : ev.type === 'reminder' ? 'rgba(59,130,246,0.12)' : 'rgba(16,185,129,0.12)',
+                                color: ev.type === 'birthday' ? '#d97706' : ev.type === 'reminder' ? '#2563eb' : '#059669',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
@@ -809,7 +486,7 @@ export default function SocialIntelligencePage({ customers, settings, onSelectCu
                               }}
                               title={ev.detail}
                             >
-                              <span>{ev.type === 'birthday' ? '🎂' : '🎉'}</span>
+                              <span>{ev.type === 'birthday' ? '🎂' : ev.type === 'reminder' ? '⏰' : '🎉'}</span>
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.customer.nama}</span>
                             </div>
                           ))}
@@ -872,13 +549,28 @@ export default function SocialIntelligencePage({ customers, settings, onSelectCu
                           gap: 12
                         }}
                       >
+                        {/* Checkbox for Broadcast */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                          <input 
+                            type="checkbox"
+                            checked={selectedEvents.has(copiedKey)}
+                            onChange={(e) => {
+                              const newSet = new Set(selectedEvents);
+                              if (e.target.checked) newSet.add(copiedKey);
+                              else newSet.delete(copiedKey);
+                              setSelectedEvents(newSet);
+                            }}
+                            style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#7c3aed' }}
+                          />
+                          <span style={{ fontSize: 12, fontWeight: 600 }}>Pilih untuk broadcast</span>
+                        </div>
                         {/* Header info */}
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                           <div style={{
                             width: 38,
                             height: 38,
                             borderRadius: '50%',
-                            background: ev.type === 'birthday' ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : 'linear-gradient(135deg,#10b981,#059669)',
+                            background: ev.type === 'birthday' ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : ev.type === 'reminder' ? 'linear-gradient(135deg,#3b82f6,#2563eb)' : 'linear-gradient(135deg,#10b981,#059669)',
                             color: 'white',
                             display: 'flex',
                             alignItems: 'center',
@@ -897,10 +589,10 @@ export default function SocialIntelligencePage({ customers, settings, onSelectCu
                                 fontWeight: 700,
                                 padding: '1px 5px',
                                 borderRadius: 4,
-                                background: ev.type === 'birthday' ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)',
-                                color: ev.type === 'birthday' ? '#d97706' : '#059669'
+                                background: ev.type === 'birthday' ? 'rgba(245,158,11,0.15)' : ev.type === 'reminder' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)',
+                                color: ev.type === 'birthday' ? '#d97706' : ev.type === 'reminder' ? '#2563eb' : '#059669'
                               }}>
-                                {ev.type === 'birthday' ? '🎂 Birthday' : '🎉 Anniv'}
+                                {ev.type === 'birthday' ? '🎂 Birthday' : ev.type === 'reminder' ? '⏰ Reminder' : '🎉 Anniv'}
                               </span>
                             </div>
                             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
@@ -956,6 +648,17 @@ export default function SocialIntelligencePage({ customers, settings, onSelectCu
                             </a>
                           )}
 
+                          <button
+                            onClick={() => {
+                              setShowReminderForm({ customerId: ev.customer.id, customerName: ev.customer.nama });
+                              setReminderDate('');
+                              setReminderNote('');
+                            }}
+                            className="btn btn-secondary"
+                            style={{ fontSize: 11, padding: '6px 10px', gap: 4, height: '32px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                          >
+                            <Plus size={12} /> Tambah Pengingat
+                          </button>
                           {onSelectCustomer && (
                             <button
                               onClick={() => onSelectCustomer(ev.customer)}
@@ -974,64 +677,116 @@ export default function SocialIntelligencePage({ customers, settings, onSelectCu
             </div>
 
           </div>
-        )}
 
-        {/* ── Tab Content: Tampermonkey Automation Settings ── */}
-        {activeTab === 'automation' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 24 }}>
-            
-            {/* Guide Card */}
-            <div className="card" style={{ padding: 20 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px 0', color: 'var(--text-primary)' }}>🤖 Petunjuk Pemasangan Auto-Scan</h2>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                <p>Ikuti langkah mudah ini untuk mengaktifkan pemindaian otomatis di latar belakang browser Anda:</p>
-                <ol style={{ paddingLeft: 20, margin: '12px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <li>
-                    <strong>Install Ekstensi Tampermonkey:</strong><br />
-                    Download ekstensi gratis Tampermonkey di Chrome/Edge Web Store Anda.
-                  </li>
-                  <li>
-                    <strong>Buat Script Baru:</strong><br />
-                    Buka dashboard Tampermonkey di browser Anda, lalu klik tombol <strong>Create a new script (+)</strong>.
-                  </li>
-                  <li>
-                    <strong>Salin & Simpan Kode Script:</strong><br />
-                    Klik tombol <strong>"Salin Kode UserScript"</strong> di sebelah kanan, paste-kan seluruh kodenya ke editor Tampermonkey, lalu klik <strong>File - Save</strong> di menu editor.
-                  </li>
-                  <li>
-                    <strong>Buka Instagram Web:</strong><br />
-                    Buka Instagram Web di tab browser Anda (pastikan Anda login). Script akan berjalan secara sunyi dan lambat memantau profil pelanggan yang terdaftar.
-                  </li>
-                </ol>
-                <div style={{ padding: 12, background: 'rgba(124,58,237,0.08)', borderLeft: '3px solid #7c3aed', borderRadius: '0 8px 8px 0', marginTop: 16 }}>
-                  <strong>Keamanan Data Terjamin:</strong> Script ini berjalan lokal di browser Anda. Tidak ada data yang dikirim ke server luar. Semua sinkronisasi terjadi langsung antara tab Instagram dan tab CRM Pearl Store.
-                </div>
-              </div>
-            </div>
-
-            {/* Script Viewer Card */}
-            <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>📄 Kode UserScript</h2>
-                <button
-                  onClick={copyScriptCode}
-                  className="btn btn-primary"
-                  style={{ fontSize: 12, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  {scriptCopied ? <Check size={14} /> : <Copy size={14} />}
-                  {scriptCopied ? 'Tersalin!' : 'Salin Kode UserScript'}
-                </button>
-              </div>
-              
-              <div style={{ flex: 1, minHeight: 300, background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, overflow: 'auto', fontFamily: 'monospace', fontSize: 11, color: '#f1f5f9', whiteSpace: 'pre' }}>
-                {TAMPERMONKEY_SCRIPT_CODE}
-              </div>
-            </div>
-
+      {/* Sticky Broadcast Footer */}
+      {selectedEvents.size > 0 && (
+        <div style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: 'var(--bg-card)',
+          borderTop: '1px solid var(--border)',
+          padding: '16px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxShadow: '0 -4px 12px rgba(0,0,0,0.1)',
+          zIndex: 100
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>
+            {selectedEvents.size} event dipilih
           </div>
-        )}
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setSelectedEvents(new Set())}
+            >
+              Batalkan Pilihan
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={async () => {
+                const msgs: string[] = [];
+                selectedEvents.forEach(key => {
+                   const ev = selectedDayEvents?.events.find((e, idx) => `cal-${e.customer.id}-${e.type}-${idx}` === key);
+                   if (ev) msgs.push(`Untuk: ${ev.customer.nama}\nPesan:\n${ev.message}`);
+                });
+                if (msgs.length > 0) {
+                    await copyText(msgs.join('\n\n---\n\n'));
+                    alert('Semua pesan berhasil disalin!');
+                }
+              }}
+            >
+              📋 Salin Semua Pesan
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={isProcessingQueue}
+              onClick={async () => {
+                setIsProcessingQueue(true);
+                const evs = Array.from(selectedEvents).map(key => selectedDayEvents?.events.find((e, idx) => `cal-${e.customer.id}-${e.type}-${idx}` === key)).filter(Boolean);
+                for (const ev of evs) {
+                  if (ev && ev.customer.wa) {
+                    const waClean = ev.customer.wa.replace(/\D/g, '');
+                    const waLink = `https://wa.me/${waClean}?text=${encodeURIComponent(ev.message)}`;
+                    window.open(waLink, '_blank');
+                    await new Promise(r => setTimeout(r, 200));
+                  }
+                }
+                setIsProcessingQueue(false);
+              }}
+            >
+              {isProcessingQueue ? <Loader2 size={16} className="spin" /> : '🚀'} Buka Semua WA ({selectedEvents.size} orang)
+            </button>
+          </div>
+        </div>
+      )}
 
-      </div>
+      {/* Reminder Form Modal */}
+      {showReminderForm && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ width: 400, padding: 24, background: 'var(--bg-card)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Tambah Pengingat Custom</h3>
+              <button onClick={() => setShowReminderForm(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)' }}><X size={20} /></button>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 12, marginBottom: 4, fontWeight: 600 }}>Pelanggan</label>
+              <input type="text" className="input" value={showReminderForm.customerName} disabled style={{ width: '100%' }} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 12, marginBottom: 4, fontWeight: 600 }}>Jenis Pengingat</label>
+              <select className="input" value={reminderType} onChange={e => setReminderType(e.target.value)} style={{ width: '100%' }}>
+                <option>Service Perhiasan</option>
+                <option>Follow-up Pesanan</option>
+                <option>Penagihan DP</option>
+                <option>Custom</option>
+              </select>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 12, marginBottom: 4, fontWeight: 600 }}>Tanggal (YYYY-MM-DD)</label>
+              <input type="date" className="input" value={reminderDate} onChange={e => setReminderDate(e.target.value)} style={{ width: '100%' }} />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 12, marginBottom: 4, fontWeight: 600 }}>Catatan</label>
+              <textarea className="input" value={reminderNote} onChange={e => setReminderNote(e.target.value)} style={{ width: '100%', minHeight: 80 }} />
+            </div>
+            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => {
+              if (!reminderDate) return alert('Tanggal harus diisi!');
+              setReminders(prev => [...prev, {
+                id: `rem-${Date.now()}`,
+                customerId: showReminderForm.customerId,
+                date: reminderDate,
+                type: reminderType,
+                note: reminderNote
+              }]);
+              setShowReminderForm(null);
+            }}>Simpan Pengingat</button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

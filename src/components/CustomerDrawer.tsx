@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { X, Instagram, Phone, MapPin, Calendar, Package, CreditCard, Edit2, Trash2, Plus, Copy, Check, Printer } from 'lucide-react';
 import type { Customer, CustomerRow } from '../types';
-import { formatRupiah, getJenisBadgeClass, getCustomerLabel } from '../utils/csvLoader';
+import { formatRupiah, getJenisBadgeClass, getCustomerLabel, resolveImageUrl } from '../utils/csvLoader';
 import { printInvoice, printCustomerStatement } from '../utils/printHelper';
 import { formatBirthday } from '../utils/birthday';
 import CustomerFormModal from './CustomerFormModal';
@@ -10,6 +10,12 @@ import OrderFormModal from './OrderFormModal';
 import ShippingLabelModal from './ShippingLabelModal';
 import { calcLoyalty } from '../utils/loyaltyEngine';
 import { extractInstagramUsername, generateInstaLink } from '../utils/socialIntelligenceEngine';
+import { generateUpsellRecommendations, generateSmartCopy } from '../utils/aiEngines';
+import { Wand2 } from 'lucide-react';
+const isGooglePhotos = (url?: string | null) => {
+  if (!url) return false;
+  return url.includes('photos.google.com') || url.includes('photos.app.goo.gl');
+};
 
 interface Props {
   customer: Customer;
@@ -28,20 +34,24 @@ function initials(name: string) {
 
 function getWhatsAppShareUrl(customer: Customer, order: CustomerRow, settings?: any) {
   const storeName = settings?.storeName || 'Pearl Store';
-  const phone = customer.wa ? customer.wa.replace(/[^0-9]/g, '').replace(/^0/, '62') : '';
+  // BUG-ST4 fix: return null if no phone number so caller can disable/hide the button
+  if (!customer.wa) return null;
+  const phone = customer.wa.replace(/[^0-9]/g, '').replace(/^0/, '62');
+  if (!phone) return null;
+
   const template = settings?.shippingMessageTemplate || 'Halo Kak {customerName}! Terima kasih atas ordernya di toko kami. Pesanan perhiasan {productName} Kakak telah dikirim menggunakan kurir {courierName} dengan nomor resi *{resi}*. Semoga suka dengan perhiasannya! 💎✨';
-  
+
   const productName = order.jenis || 'mutiara';
   const courierName = order.kurir || 'kurir';
   const resi = order.resi || '';
-  
+
   const message = template
     .replace(/{customerName}/g, customer.nama)
     .replace(/{productName}/g, productName)
     .replace(/{courierName}/g, courierName)
     .replace(/{resi}/g, resi)
     .replace(/{storeName}/g, storeName);
-    
+
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
@@ -53,17 +63,21 @@ function getWhatsAppBirthdayUrl(customer: Customer, settings?: any) {
   const vipMinSpend = settings?.vipMinSpend || 15000000;
   const loyalMinOrders = settings?.loyalMinOrders || 3;
 
-  const phone = customer.wa ? customer.wa.replace(/[^0-9]/g, '').replace(/^0/, '62') : '';
+  // BUG-ST4 fix: return null if no phone number
+  if (!customer.wa) return null;
+  const phone = customer.wa.replace(/[^0-9]/g, '').replace(/^0/, '62');
+  if (!phone) return null;
+
   const label = getCustomerLabel(customer.totalSpend, customer.orderCount, vipMinSpend, loyalMinOrders);
-  
+
   const voucherText = voucherType === 'percent'
     ? `${voucherValue}%`
     : `Rp ${voucherValue.toLocaleString('id-ID')}`;
 
   const vipNote = label === 'vip' ? `\n\n🌟 Sebagai pelanggan VIP kami, Kakak mendapat diskon spesial *${voucherText}* untuk pembelian berikutnya! Cukup sebut kode: *${voucherCode}* saat order ya 🎁` : '';
-  
+
   const template = settings?.birthdayMessageTemplate || '🎂 Selamat Ulang Tahun Kak {customerName}! 🎉\n\nSemoga hari spesial Kakak dipenuhi kebahagiaan dan selalu dalam lindungan-Nya. Terima kasih sudah menjadi pelanggan setia {storeName}! 💎✨{vipNote}\n\nSalam hangat,\n💎 {storeName}';
-  
+
   const message = template
     .replace(/{customerName}/g, customer.nama)
     .replace(/{storeName}/g, storeName)
@@ -97,11 +111,15 @@ export default function CustomerDrawer({
   const [editingOrder, setEditingOrder]             = useState<CustomerRow | null>(null);
   const [confirmDelete, setConfirmDelete]           = useState(false);
   const [showShippingLabel, setShowShippingLabel]   = useState<CustomerRow | null | undefined>(undefined);
+  const [showAIWriter, setShowAIWriter]             = useState(false);
+  const [aiTone, setAiTone]                         = useState<'casual'|'formal'|'empathic'>('casual');
+  const [aiContext, setAiContext]                   = useState('Ulang Tahun');
   const customerLabel = getCustomerLabel(customer.totalSpend, customer.orderCount, settings?.vipMinSpend, settings?.loyalMinOrders);
 
   const colorIdx  = customer.nama.charCodeAt(0) % GRAD_COLORS.length;
   const avgOrder  = customer.orderCount > 0 ? customer.totalSpend / customer.orderCount : 0;
   const loyalty   = calcLoyalty(customer);
+  const upsellRecs = generateUpsellRecommendations(customer);
 
   const typeCount:  Record<string, number> = {};
   const pearlCount: Record<string, number> = {};
@@ -319,7 +337,7 @@ export default function CustomerDrawer({
                     <span className="detail-value">{formatBirthday(customer.tanggalUlangTahun)}</span>
                     {customer.wa && (
                       <a
-                        href={getWhatsAppBirthdayUrl(customer, settings)}
+                        href={getWhatsAppBirthdayUrl(customer, settings) || undefined}
                         target="_blank" rel="noopener noreferrer"
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -343,6 +361,60 @@ export default function CustomerDrawer({
               <div className="detail-row"><span className="detail-label">Favourite Type</span><span className="detail-value">{favType}</span></div>
               <div className="detail-row"><span className="detail-label">Favourite Pearl</span><span className="detail-value">{favPearl}</span></div>
               <div className="detail-row"><span className="detail-label">Last Order</span><span className="detail-value">{customer.lastOrder || '—'}</span></div>
+            </div>
+
+            {/* AI Predictive Upselling */}
+            <div className="detail-section" style={{ background: 'linear-gradient(135deg, rgba(124,58,237,0.05), rgba(79,70,229,0.05))', borderColor: 'rgba(124,58,237,0.2)' }}>
+              <div className="detail-section-title" style={{ color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Wand2 size={14} /> AI Recommendations
+              </div>
+              {upsellRecs.map((rec, i) => (
+                <div key={i} style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>{rec.product}</strong>
+                    <span style={{ fontSize: 11, background: '#10b981', color: 'white', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>{rec.confidence}% Match</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>{rec.reason}</div>
+                </div>
+              ))}
+              
+              <button 
+                className="btn btn-primary" 
+                style={{ width: '100%', marginTop: 8, background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', border: 'none', gap: 6 }}
+                onClick={() => setShowAIWriter(!showAIWriter)}
+              >
+                <Wand2 size={14} /> AI Generate Message
+              </button>
+
+              {showAIWriter && (
+                <div style={{ marginTop: 12, padding: 12, background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <div className="ai-writer-controls" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                    <select value={aiTone} onChange={e => setAiTone(e.target.value as any)} className="form-control" style={{ flex: 1, fontSize: 12, padding: 6, minWidth: 120 }}>
+                      <option value="casual">Santai / Casual</option>
+                      <option value="formal">Profesional</option>
+                      <option value="empathic">Penuh Empati</option>
+                    </select>
+                    <select value={aiContext} onChange={e => setAiContext(e.target.value)} className="form-control" style={{ flex: 1, fontSize: 12, padding: 6, minWidth: 120 }}>
+                      <option value="Ulang Tahun">Ulang Tahun</option>
+                      <option value="Follow-up Order">Follow-up Order</option>
+                      <option value="Promo Spesial">Promo Spesial</option>
+                    </select>
+                  </div>
+                  <textarea 
+                    readOnly 
+                    value={generateSmartCopy(aiContext, aiTone)} 
+                    style={{ width: '100%', minHeight: 100, padding: 8, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-input)', fontSize: 12, color: 'var(--text-primary)', resize: 'vertical' }}
+                  />
+                  <a
+                    href={`https://wa.me/${customer.wa.replace(/[^0-9]/g,'').replace(/^0/,'62')}?text=${encodeURIComponent(generateSmartCopy(aiContext, aiTone))}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="btn btn-primary"
+                    style={{ width: '100%', marginTop: 8, justifyContent: 'center', background: '#25D366', color: 'white', border: 'none' }}
+                  >
+                    Kirim via WhatsApp
+                  </a>
+                </div>
+              )}
             </div>
 
             {/* Order History */}
@@ -377,71 +449,161 @@ export default function CustomerDrawer({
                 {customer.orders.slice().reverse().map((o) => {
                   const statusCfg = o.orderStatus ? STATUS_CONFIG[o.orderStatus] : null;
                   return (
-                    <div key={o.id} className="order-item" style={{ position: 'relative' }}>
-                      <div>
-                        <div className="order-date">{o.tanggalOrder || '—'}</div>
-                        <div style={{ marginTop: 4, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                          {o.jenis && <span className={`badge ${getJenisBadgeClass(o.jenis)}`}>{o.jenis}</span>}
-                          {statusCfg && (
-                            <span style={{
-                              fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
-                              color: statusCfg.color, background: statusCfg.bg,
-                            }}>{statusCfg.label}</span>
-                          )}
+                    <div key={o.id} className="order-item" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+                      {/* Top Row: Date & Actions */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div className="order-date">{o.tanggalOrder || '—'}</div>
+                          <div style={{ marginTop: 4, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                            {o.jenis && <span className={`badge ${getJenisBadgeClass(o.jenis)}`}>{o.jenis}</span>}
+                            {statusCfg && (
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                                color: statusCfg.color, background: statusCfg.bg,
+                              }}>{statusCfg.label}</span>
+                            )}
+                          </div>
+                        </div>
+                        {/* Cetak / Edit / Delete order */}
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            className="icon-btn" style={{ width: 26, height: 26, color: 'var(--text-accent)' }}
+                            title="Cetak Nota Order" onClick={() => printInvoice(customer, o, settings)}
+                          ><Printer size={11} /></button>
+                          <button
+                            className="icon-btn" style={{ width:26, height:26 }}
+                            title="Edit order" onClick={() => setEditingOrder(o)}
+                          ><Edit2 size={11} /></button>
+                          <button
+                            className="icon-btn" style={{ width:26, height:26, color:'var(--accent-red)' }}
+                            title="Hapus order" onClick={() => { if (window.confirm('Hapus order ini?')) onDeleteOrder(o.id); }}
+                          ><Trash2 size={11} /></button>
                         </div>
                       </div>
-                      <div className="order-type" style={{ fontSize:11.5, color:'var(--text-muted)' }}>
-                        {o.type} {o.size && `· ${o.size}mm`} {o.color && `· ${o.color}`}
-                        {o.keterangan && <div style={{ fontSize: 10.5, marginTop: 2, color: 'var(--text-muted)' }}>{o.keterangan}</div>}
-                        {o.resi && (
-                          <div style={{ fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-accent)', flexWrap: 'wrap' }}>
-                            <span>Resi: <strong>{o.resi}</strong> {o.kurir && `(${o.kurir})`}</span>
-                            {customer.wa && (
-                              <a
-                                href={getWhatsAppShareUrl(customer, o, settings)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="wa-resi-btn"
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 3,
-                                  color: '#10b981', background: 'rgba(16,185,129,0.1)',
-                                  padding: '2px 6px', borderRadius: 4, fontSize: 10.5,
-                                  textDecoration: 'none', fontWeight: 500
-                                }}
-                                title="Kirim Resi via WhatsApp"
+
+                      {/* Middle Row: Details & Price */}
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                        <div className="order-type" style={{ flex: 1, fontSize: 11.5, color: 'var(--text-muted)' }}>
+                          <strong style={{ color: 'var(--text-primary)' }}>{o.type}</strong> {o.size && `· ${o.size}mm`} {o.color && `· ${o.color}`}
+                          
+                          {o.keterangan && (
+                            <div style={{ 
+                              fontSize: 10.5, marginTop: 6, color: 'var(--text-secondary)', 
+                              padding: '8px 10px', background: 'rgba(0,0,0,0.03)', 
+                              borderRadius: 6, border: '1px solid var(--border)',
+                              fontFamily: 'monospace', whiteSpace: 'pre-wrap', lineHeight: 1.4
+                            }}>
+                              {o.keterangan.split(' | ').join('\n')}
+                            </div>
+                          )}
+
+                          {o.resi && (
+                            <div style={{ fontSize: 11, marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-accent)', flexWrap: 'wrap' }}>
+                              <span>Resi: <strong>{o.resi}</strong> {o.kurir && `(${o.kurir})`}</span>
+                              {customer.wa && (
+                                <a
+                                  href={getWhatsAppShareUrl(customer, o, settings) || undefined}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="wa-resi-btn"
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                                    color: '#10b981', background: 'rgba(16,185,129,0.1)',
+                                    padding: '2px 6px', borderRadius: 4, fontSize: 10.5,
+                                    textDecoration: 'none', fontWeight: 500
+                                  }}
+                                  title="Kirim Resi via WhatsApp"
+                                >
+                                  <Phone size={10} /> Kirim Resi
+                                </a>
+                              )}
+                              <button
+                                className="btn btn-secondary"
+                                style={{ padding: '2px 6px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 3, height: 20 }}
+                                onClick={() => setShowShippingLabel(o)}
+                                title="Cetak label pengiriman"
                               >
-                                <Phone size={10} /> Kirim Resi
-                              </a>
-                            )}
-                            <button
-                              className="btn btn-secondary"
-                              style={{ padding: '2px 6px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 3, height: 20 }}
-                              onClick={() => setShowShippingLabel(o)}
-                              title="Cetak label pengiriman"
-                            >
-                              <Printer size={9} /> Label
-                            </button>
+                                <Printer size={9} /> Label
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="order-price" style={{ textAlign: 'right' }}>
+                          {o.totalBayar ? `Rp ${parseInt(o.totalBayar.replace(/\D/g,''),10).toLocaleString('id-ID')}` : '—'}
+                        </div>
+                      </div>
+
+                      {/* Bottom Row: Images */}
+                      {(() => {
+                        const images: { url: string; isGoogle: boolean; label: string }[] = [];
+                        if (o.gambar && o.gambar.trim() && o.gambar !== '-' && o.gambar !== '—') {
+                          images.push({ url: o.gambar, isGoogle: isGooglePhotos(o.gambar), label: 'Foto Utama' });
+                        }
+                        if (o.attachments && Array.isArray(o.attachments)) {
+                          o.attachments.forEach((att, attIdx) => {
+                            if (att && att.trim()) {
+                              images.push({ url: att, isGoogle: isGooglePhotos(att), label: `Lampiran ${attIdx + 1}` });
+                            }
+                          });
+                        }
+                        if (images.length === 0) return null;
+                        
+                        return (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {images.map((img, i) => {
+                              const resolved = resolveImageUrl(img.url);
+                              return img.isGoogle ? (
+                                <a 
+                                  key={i} 
+                                  href={img.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    width: 44,
+                                    height: 44,
+                                    borderRadius: 6,
+                                    border: '1px dashed var(--border)',
+                                    background: 'var(--bg-secondary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: 18,
+                                    textDecoration: 'none',
+                                    transition: 'border-color 0.2s'
+                                  }}
+                                  title={`${img.label} (Google Photos)`}
+                                  onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent-purple)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                                >
+                                  🖼️
+                                </a>
+                              ) : (
+                                <a key={i} href={resolved} target="_blank" rel="noopener noreferrer">
+                                  <img 
+                                    src={resolved} 
+                                    alt={`${img.label} ${i}`} 
+                                    style={{ 
+                                      width: 44, 
+                                      height: 44, 
+                                      objectFit: 'cover', 
+                                      borderRadius: 6, 
+                                      border: '1px solid var(--border)',
+                                      transition: 'border-color 0.2s',
+                                      background: 'var(--bg-tertiary)'
+                                    }}
+                                    onError={(e) => {
+                                      // fallback for broken images
+                                      (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><rect width="44" height="44" fill="%23eee"/><text x="50%" y="50%" fill="%23999" font-size="10" font-family="sans-serif" dominant-baseline="middle" text-anchor="middle">No Img</text></svg>';
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent-purple)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                                  />
+                                </a>
+                              );
+                            })}
                           </div>
-                        )}
-                      </div>
-                      <div className="order-price">
-                        {o.totalBayar ? `Rp ${parseInt(o.totalBayar.replace(/\D/g,''),10).toLocaleString('id-ID')}` : '—'}
-                      </div>
-                      {/* Cetak / Edit / Delete order */}
-                      <div style={{ display: 'flex', gap: 4, marginLeft: 4 }}>
-                        <button
-                          className="icon-btn" style={{ width: 26, height: 26, color: 'var(--text-accent)' }}
-                          title="Cetak Nota Order" onClick={() => printInvoice(customer, o, settings)}
-                        ><Printer size={11} /></button>
-                        <button
-                          className="icon-btn" style={{ width:26, height:26 }}
-                          title="Edit order" onClick={() => setEditingOrder(o)}
-                        ><Edit2 size={11} /></button>
-                        <button
-                          className="icon-btn" style={{ width:26, height:26, color:'var(--accent-red)' }}
-                          title="Hapus order" onClick={() => { if (window.confirm('Hapus order ini?')) onDeleteOrder(o.id); }}
-                        ><Trash2 size={11} /></button>
-                      </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}

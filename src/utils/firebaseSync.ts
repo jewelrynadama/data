@@ -27,6 +27,7 @@ export function subscribeToStore(
           newOrders: [],
           editedOrders: {},
           deletedOrderIds: [],
+          inventoryLogs: [],
         });
       }
     },
@@ -43,6 +44,32 @@ export async function saveToFirestore(data: LocalStore): Promise<void> {
   await setDoc(docRef, data);
 }
 
+export async function clearDeletedOrdersInFirestore(): Promise<void> {
+  if (!db) return;
+  const docRef = doc(db, DOC_COLL, DOC_ID);
+  const snapshot = await getDoc(docRef);
+  if (snapshot.exists()) {
+    const data = snapshot.data() as LocalStore;
+    data.deletedOrderIds = [];
+    await setDoc(docRef, data);
+  }
+}
+
+export async function clearManualAdditionsInFirestore(): Promise<void> {
+  if (!db) return;
+  const docRef = doc(db, DOC_COLL, DOC_ID);
+  const data: LocalStore = {
+    newCustomers: [],
+    newOrders: [],
+    deletedCustomerIds: [],
+    deletedOrderIds: [],
+    editedCustomers: {},
+    editedOrders: {},
+    inventoryLogs: [],
+  };
+  await setDoc(docRef, data);
+}
+
 export async function mergeAndUploadLocal(localData: LocalStore): Promise<LocalStore> {
   if (!db) return localData;
   const docRef = doc(db, DOC_COLL, DOC_ID);
@@ -55,6 +82,7 @@ export async function mergeAndUploadLocal(localData: LocalStore): Promise<LocalS
     newOrders: [],
     editedOrders: {},
     deletedOrderIds: [],
+    inventoryLogs: [],
   };
 
   if (snapshot.exists()) {
@@ -98,6 +126,16 @@ export async function mergeAndUploadLocal(localData: LocalStore): Promise<LocalS
     ...localData.editedOrders
   };
 
+  const mergedInventoryLogs = [...(onlineData.inventoryLogs || [])];
+  (localData.inventoryLogs || []).forEach(log => {
+    const idx = mergedInventoryLogs.findIndex((l: any) => l.id === log.id);
+    if (idx === -1) {
+      mergedInventoryLogs.push(log);
+    } else {
+      mergedInventoryLogs[idx] = log; // local overwrite
+    }
+  });
+
   const finalMerged: LocalStore = {
     newCustomers: mergedNewCustomers,
     editedCustomers: mergedEditedCustomers,
@@ -105,6 +143,7 @@ export async function mergeAndUploadLocal(localData: LocalStore): Promise<LocalS
     newOrders: mergedNewOrders,
     editedOrders: mergedEditedOrders,
     deletedOrderIds: mergedDeletedOrderIds,
+    inventoryLogs: mergedInventoryLogs,
   };
 
   await setDoc(docRef, finalMerged);

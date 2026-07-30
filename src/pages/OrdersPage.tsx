@@ -1,10 +1,75 @@
-// src/pages/OrdersPage.tsx
-import { useState, useMemo } from 'react';
-import { Search, Printer, Edit2, Trash2 } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Search, Printer, Edit2, Trash2, X, Package, MapPin, CreditCard, Camera } from 'lucide-react';
 import type { CustomerRow, Customer } from '../types';
-import { getJenisBadgeClass, getPearlBadgeClass, parseDateToSortValue } from '../utils/csvLoader';
+import { getJenisBadgeClass, getPearlBadgeClass, parseDateToSortValue, cleanPrice, resolveImageUrl } from '../utils/csvLoader';
 import OrderFormModal from '../components/OrderFormModal';
 import { printInvoice } from '../utils/printHelper';
+import { storage } from '../utils/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+// ─── Filter Dropdown Component ─────────────────────────────────────────────
+interface FilterOption { value: string; label: string; count: number; }
+interface FilterDropdownProps {
+  label: string;
+  value: string;
+  options: FilterOption[];
+  onChange: (val: string) => void;
+  customContent?: React.ReactNode;
+}
+
+function FilterDropdown({ label, value, options, onChange, customContent }: FilterDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const isActive = !!value;
+  const activeLabel = options.find(o => o.value === value)?.label || (customContent && isActive ? 'Filter' : '');
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div className="filter-panel-wrap" ref={wrapRef}>
+      <button
+        className={`filter-btn${isActive ? ' active' : ''}`}
+        onClick={() => setOpen(p => !p)}
+      >
+        {isActive ? (activeLabel || label) : label}
+        {isActive && <span className="filter-badge">✓</span>}
+        <span style={{ fontSize: 9, opacity: 0.6 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="filter-panel" style={{ maxHeight: 320, overflowY: 'auto' }}>
+          {customContent ? customContent : (
+            <>
+              <div
+                className={`filter-panel-item${!value ? ' selected' : ''}`}
+                onClick={() => { onChange(''); setOpen(false); }}
+              >
+                <span>Semua</span>
+              </div>
+              {options.map(opt => (
+                <div
+                  key={opt.value}
+                  className={`filter-panel-item${value === opt.value ? ' selected' : ''}`}
+                  onClick={() => { onChange(value === opt.value ? '' : opt.value); setOpen(false); }}
+                >
+                  <span>{opt.label}</span>
+                  <span className="fpi-count">{opt.count}</span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   pending:  { label: '⏳ Pending',  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
@@ -29,6 +94,199 @@ type SortKey = 'tanggalOrder' | 'namaInstagram' | 'jenis' | 'type' | 'totalBayar
 
 const ROWS_OPTIONS = [15, 25, 50, 100];
 
+const isGooglePhotos = (url?: string | null) => {
+  if (!url) return false;
+  // Only treat as Google Photos album (non-embeddable) if it's a sharing/album link
+  // lh3.googleusercontent.com URLs ARE directly embeddable as images
+  return (url.includes('photos.google.com/share') || 
+          url.includes('photos.google.com/album') ||
+          url.includes('photos.app.goo.gl')) &&
+          !url.includes('lh3.googleusercontent.com');
+};
+
+// ─────────────────────────────────────────────
+// Drive Image Card: searches Google Drive by filename
+// and renders the thumbnail directly from Drive
+// ─────────────────────────────────────────────
+const DRIVE_RESOLVE_CACHE = new Map<string, string | null>();
+
+function isPlainFilename(url: string): boolean {
+  if (!url) return false;
+  return !url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('blob:');
+}
+
+function DriveImageCard({
+  photo,
+  onDelete,
+  onOpenLightbox,
+  onUpdateUrl
+}: {
+  photo: { url: string; originalName: string; label: string; orderId: string; isMain: boolean };
+  onDelete: () => void;
+  onOpenLightbox?: (src: string, label: string) => void;
+  onUpdateUrl?: (newUrl: string) => void;
+}) {
+  const filename = photo.originalName || photo.url;
+  const isDriveSearch = isPlainFilename(photo.url);
+  const [imgSrc, setImgSrc] = useState<string | null>(isDriveSearch ? null : photo.url);
+  const [status, setStatus] = useState<'loading' | 'ok' | 'error' | 'uploading'>(isDriveSearch ? 'loading' : 'ok');
+  const [driveFileId, setDriveFileId] = useState<string | null>(null);
+  const fetched = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !storage) return;
+
+    setStatus('uploading');
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const newFilename = `whatsapp_attachments/${Date.now()}_upload.${ext}`;
+      const fileRef = ref(storage, newFilename);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      setImgSrc(url);
+      setStatus('ok');
+      if (onUpdateUrl) {
+        onUpdateUrl(url);
+      }
+    } catch (err) {
+      console.error('Upload failed', err);
+      setStatus('error');
+      alert('Gagal mengupload foto');
+    }
+  };
+
+  useEffect(() => {
+    if (!isDriveSearch || fetched.current) return;
+    fetched.current = true;
+
+    if (DRIVE_RESOLVE_CACHE.has(filename)) {
+      const cached = DRIVE_RESOLVE_CACHE.get(filename);
+      if (cached) { 
+        setImgSrc(cached); 
+        setDriveFileId(cached.includes('drive.google.com') ? cached.split('id=')[1]?.split('&')[0] : null); 
+        setStatus('ok'); 
+      }
+      else setStatus('error');
+      return;
+    }
+
+    // Bypassing Drive and Firebase Storage search to allow manual upload immediately
+    DRIVE_RESOLVE_CACHE.set(filename, null);
+    setStatus('error');
+  }, [filename, isDriveSearch, onUpdateUrl]);
+
+  const driveSearchUrl = `https://drive.google.com/drive/u/6/search?q=${encodeURIComponent(filename.replace(/\.\w+$/, ''))}`;
+  const driveViewUrl = driveFileId ? `https://drive.google.com/file/d/${driveFileId}/view` : null;
+
+  const handleImgClick = () => {
+    if (imgSrc && onOpenLightbox) {
+      onOpenLightbox(imgSrc, photo.label);
+    } else {
+      window.open(driveViewUrl || imgSrc || '', '_blank');
+    }
+  };
+
+  return (
+    <div
+      style={{
+        width: 300,
+        flexShrink: 0,
+        borderRadius: 14,
+        overflow: 'hidden',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-secondary)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.13)',
+        position: 'relative',
+        transition: 'transform 0.18s, box-shadow 0.18s'
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(24,119,242,0.2)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.13)'; }}
+    >
+      {status === 'loading' && (
+        <div style={{ width: '100%', height: 260, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+          <div style={{ width: 28, height: 28, border: '3px solid var(--border)', borderTopColor: '#1877F2', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Mencari di Drive...</div>
+        </div>
+      )}
+      {status === 'ok' && imgSrc && (
+        <div style={{ position: 'relative' }}>
+          <img
+            src={imgSrc}
+            alt={photo.label}
+            style={{ width: '100%', height: 260, objectFit: 'cover', cursor: 'zoom-in', display: 'block' }}
+            onClick={handleImgClick}
+            onError={() => setStatus('error')}
+          />
+          <div style={{
+            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'background 0.2s', cursor: 'zoom-in'
+          }}
+          onClick={handleImgClick}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.18)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0)'}
+          >
+            <div style={{ opacity: 0, transition: 'opacity 0.2s', fontSize: 28, color: 'white', textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}
+              className="zoom-icon">🔍</div>
+          </div>
+        </div>
+      )}
+      {status === 'error' && (
+        <div style={{ width: '100%', height: 260, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, textAlign: 'center', gap: 8 }}>
+          <div style={{ fontSize: 30 }}>🔍</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>Foto tidak ditemukan otomatis.<br/>Cari manual di Google Drive:</div>
+          <a
+            href={driveSearchUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{ marginTop: 4, padding: '6px 14px', background: '#10b981', color: 'white', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none', display: 'inline-block', width: '80%' }}
+          >
+            🔍 Cari di Drive
+          </a>
+          
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>atau</div>
+          
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{ padding: '6px 14px', background: '#1877F2', color: 'white', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', width: '80%' }}
+          >
+            📤 Upload Manual
+          </button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            style={{ display: 'none' }} 
+            accept="image/*"
+            onChange={handleUpload}
+          />
+        </div>
+      )}
+      {status === 'uploading' && (
+        <div style={{ width: '100%', height: 260, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+          <div style={{ width: 28, height: 28, border: '3px solid var(--border)', borderTopColor: '#1877F2', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Mengupload foto...</div>
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-tertiary)' }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+          {photo.label}
+        </div>
+        <button
+          title="Hapus foto ini"
+          onClick={onDelete}
+          style={{ background: 'transparent', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, marginLeft: 6 }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrder, onEditOrder, onDeleteOrder, onBatchEditOrders, onBatchDeleteOrders, customers }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('tanggalOrder');
   const [sortAsc, setSortAsc] = useState(false);
@@ -36,6 +294,68 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingOrder, setEditingOrder] = useState<CustomerRow | null>(null);
+  const [selectedOrderView, setSelectedOrderView] = useState<CustomerRow | null>(null);
+  const [lightbox, setLightbox] = useState<{ src: string; label: string } | null>(null);
+
+  // Find all rows of the same transaction
+  const relatedOrderRows = useMemo(() => {
+    if (!selectedOrderView) return [];
+    if (!selectedOrderView.tanggalOrder) return [selectedOrderView];
+    
+    const matched = rows.filter((r) => 
+      r.namaInstagram.toLowerCase() === selectedOrderView.namaInstagram.toLowerCase() &&
+      r.tanggalOrder === selectedOrderView.tanggalOrder
+    );
+    // Always include at least the selected row itself
+    if (matched.length === 0) return [selectedOrderView];
+    return matched;
+  }, [selectedOrderView, rows]);
+
+  const uniquePhotos = useMemo(() => {
+    if (!selectedOrderView) return [];
+    
+    const photos: { url: string; originalName: string; label: string; isGoogle: boolean; orderId: string; isMain: boolean }[] = [];
+    const seen = new Set<string>();
+    
+    relatedOrderRows.forEach((item, idx) => {
+      if (item.gambar && item.gambar.trim() && item.gambar !== '-' && item.gambar !== '—') {
+        const resolved = resolveImageUrl(item.gambar);
+        if (!seen.has(resolved)) {
+          seen.add(resolved);
+          photos.push({
+            url: resolved,
+            originalName: item.gambar,
+            label: `Foto ${item.jenis || 'Produk'} (Item ${idx + 1})`,
+            isGoogle: isGooglePhotos(item.gambar),
+            orderId: item.id,
+            isMain: true
+          });
+        }
+      }
+      
+      if (item.attachments && Array.isArray(item.attachments)) {
+        item.attachments.forEach((att, attIdx) => {
+          if (att && att.trim()) {
+            const resolved = resolveImageUrl(att);
+            if (!seen.has(resolved)) {
+              seen.add(resolved);
+              photos.push({
+                url: resolved,
+                originalName: att,
+                label: `Lampiran ${attIdx + 1} (Item ${idx + 1})`,
+                isGoogle: isGooglePhotos(att),
+                orderId: item.id,
+                isMain: false
+              });
+            }
+          }
+        });
+      }
+    });
+    
+    return photos;
+  }, [relatedOrderRows, selectedOrderView]);
+
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filterType, setFilterType] = useState('');
   const [filterPearl, setFilterPearl] = useState('');
@@ -48,12 +368,45 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
   const [focusType, setFocusType] = useState('');
   const [focusPearl, setFocusPearl] = useState('');
   const [focusPayment, setFocusPayment] = useState('');
-  const [focusGrade, setFocusGrade] = useState('');
-  const [focusSize, setFocusSize] = useState('');
-  const [focusColor, setFocusColor] = useState('');
+  const [focusGrade] = useState('');
+  const [focusSize] = useState('');
+  const [focusColor] = useState('');
 
-  // Only rows with actual order data
-  const orderRows = useMemo(() => rows.filter((r) => r.jenis), [rows]);
+
+
+  // Only rows with actual order data, grouped by transaction
+  const orderRows = useMemo(() => {
+    const rawRows = rows.filter((r) => r.jenis);
+    const groups = new Map<string, CustomerRow[]>();
+    rawRows.forEach(r => {
+      const key = `${r.namaInstagram || r.namaPengiriman}_${r.tanggalOrder}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(r);
+    });
+
+    return Array.from(groups.values()).map(group => {
+      const first = group[0];
+      if (group.length === 1) return first;
+      
+      const totalBayarNum = group.reduce((sum, curr) => sum + parseInt((curr.totalBayar || '0').replace(/\D/g, '') || '0', 10), 0);
+      const uniqueJenis = [...new Set(group.map(g => g.jenis).filter(Boolean))];
+      const uniqueType = [...new Set(group.map(g => g.type).filter(Boolean))];
+      const uniqueSize = [...new Set(group.map(g => g.size).filter(Boolean))];
+      const uniqueColor = [...new Set(group.map(g => g.color).filter(Boolean))];
+      const uniqueGrade = [...new Set(group.map(g => g.grade).filter(Boolean))];
+      
+      return {
+        ...first,
+        id: group.map(g => g.id).join(','),
+        jenis: uniqueJenis.length > 1 ? 'Multiple Items' : uniqueJenis[0] || '',
+        type: uniqueType.length > 1 ? 'Mixed' : uniqueType[0] || '',
+        size: uniqueSize.length > 1 ? 'Mixed' : uniqueSize[0] || '',
+        color: uniqueColor.length > 1 ? 'Mixed' : uniqueColor[0] || '',
+        grade: uniqueGrade.length > 1 ? 'Mixed' : uniqueGrade[0] || '',
+        totalBayar: totalBayarNum.toString(),
+      };
+    });
+  }, [rows]);
 
   // Calculate frequencies/counts for each value
   const typeFreq = useMemo(() => {
@@ -219,8 +572,8 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
       let bv: string | number = (b[sortKey as keyof CustomerRow] as string) || '';
 
       if (sortKey === 'totalBayar') {
-        av = parseInt((av as string).replace(/\D/g, '') || '0', 10);
-        bv = parseInt((bv as string).replace(/\D/g, '') || '0', 10);
+        av = cleanPrice(av as string);
+        bv = cleanPrice(bv as string);
       } else if (sortKey === 'tanggalOrder') {
         av = parseDateToSortValue(av as string);
         bv = parseDateToSortValue(bv as string);
@@ -284,6 +637,54 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
   const safePage = Math.min(page, totalPages);
   const pageData = sorted.slice((safePage - 1) * rowsPerPage, safePage * rowsPerPage);
 
+  const exportToCsv = () => {
+    if (filtered.length === 0) {
+      alert("Tidak ada data untuk diexport!");
+      return;
+    }
+
+    const headers = [
+      "ID", "Customer", "Tanggal Order", "Jenis", "Type", "Size", "Color", "Grade",
+      "Total Bayar", "Payment Via", "Kurir", "Resi", "Keterangan", "Status", "Alamat"
+    ];
+
+    const escapeCsv = (str?: string) => {
+      if (!str) return '""';
+      const escaped = str.replace(/"/g, '""').replace(/\n/g, ' ');
+      return `"${escaped}"`;
+    };
+
+    const csvRows = filtered.map(r => {
+      const cust = customers.find(c => c.instagram === r.namaInstagram || c.nama === r.namaInstagram);
+      return [
+        escapeCsv(r.id),
+        escapeCsv(r.namaInstagram),
+        escapeCsv(r.tanggalOrder),
+        escapeCsv(r.jenis),
+        escapeCsv(r.type),
+        escapeCsv(r.size),
+        escapeCsv(r.color),
+        escapeCsv(r.grade),
+        escapeCsv(r.totalBayar),
+        escapeCsv(r.paymentVia),
+        escapeCsv(r.kurir),
+        escapeCsv(r.resi),
+        escapeCsv(r.keterangan),
+        escapeCsv(r.orderStatus),
+        escapeCsv(cust?.alamat)
+      ].join(';');
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(';'), ...csvRows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `All_Orders_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortAsc((p) => !p);
     else { setSortKey(key); setSortAsc(false); }
@@ -308,7 +709,7 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
 
   function SortIcon({ col }: { col: SortKey }) {
     if (sortKey !== col) return <span className="sort-arrow">↕</span>;
-    return <span className="sort-arrow" style={{ color: 'var(--accent-purple)' }}>{sortAsc ? '↑' : '↓'}</span>;
+    return <span className="sort-arrow" style={{ color: '#1877F2' }}>{sortAsc ? '↑' : '↓'}</span>;
   }
 
   const pageNums = useMemo(() => {
@@ -327,286 +728,121 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
 
   return (
     <div className="page-body">
-      <style>{`
-        .mass-update-bar {
-          position: fixed;
-          bottom: 24px;
-          left: 50%;
-          transform: translateX(-50%) translateX(128px);
-          background: rgba(15, 23, 42, 0.95);
-          backdrop-filter: blur(8px);
-          border: 1px solid rgba(255,255,255,0.15);
-          box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-          border-radius: 12px;
-          padding: 12px 24px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 32px;
-          z-index: 999;
-          animation: massBarSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        [data-theme='light'] .mass-update-bar {
-          background: rgba(255, 255, 255, 0.95);
-          border-color: rgba(0,0,0,0.1);
-          box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-        }
-        [data-theme='light'] .mass-update-bar span {
-          color: #0f172a !important;
-        }
-        [data-theme='light'] .mass-update-bar span.status-label {
-          color: #64748b !important;
-        }
-        @keyframes massBarSlideUp {
-          from { transform: translate(-50%, 20px) scale(0.95); opacity: 0; }
-          to { transform: translate(-50%, 0) scale(1); opacity: 1; }
-        }
-        .mass-update-select {
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          border-radius: 6px;
-          color: #ffffff;
-          padding: 6px 12px;
-          font-size: 12.5px;
-          font-weight: 600;
-          outline: none;
-          cursor: pointer;
-        }
-        [data-theme='light'] .mass-update-select {
-          background: rgba(0, 0, 0, 0.05);
-          border-color: rgba(0, 0, 0, 0.1);
-          color: #0f172a;
-        }
-        .mass-update-select option {
-          background: #0f172a;
-          color: #ffffff;
-        }
-        [data-theme='light'] .mass-update-select option {
-          background: #ffffff;
-          color: #0f172a;
-        }
-        .mass-update-btn-delete {
-          background: rgba(239, 68, 68, 0.15);
-          border: none;
-          color: #ef4444;
-          font-size: 12.5px;
-          font-weight: 600;
-          cursor: pointer;
-          padding: 6px 12px;
-          border-radius: 6px;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-        .mass-update-btn-delete:hover {
-          background: rgba(239, 68, 68, 0.25);
-        }
-        .mass-update-btn-clear {
-          background: transparent;
-          border: none;
-          color: var(--text-muted);
-          font-size: 12.5px;
-          font-weight: 600;
-          cursor: pointer;
-          padding: 6px 12px;
-          border-radius: 6px;
-          transition: all 0.2s;
-        }
-        .mass-update-btn-clear:hover {
-          background: var(--bg-card-hover);
-          color: var(--text-primary);
-        }
-        @media (max-width: 768px) {
-          .mass-update-bar {
-            bottom: 72px;
-            left: 16px;
-            right: 16px;
-            transform: none;
-            flex-direction: column;
-            gap: 12px;
-            align-items: stretch;
-            padding: 16px;
-          }
-          .orders-table-wrapper { display: none !important; }
-          .orders-card-list { display: flex !important; }
-          .orders-toolbar-filters { flex-wrap: wrap; gap: 8px !important; }
-          .orders-toolbar-filters select { flex: 1 1 calc(50% - 4px); min-width: 0; }
-          .table-toolbar { flex-wrap: wrap !important; gap: 8px !important; }
-          .table-toolbar .search-box { flex: 1 1 100% !important; min-width: 0 !important; }
-          .table-toolbar .btn { flex: 1 1 100% !important; }
-        }
-        @media (min-width: 769px) {
-          .orders-card-list { display: none !important; }
-          .orders-table-wrapper { display: block !important; }
-        }
-        .orders-card-list {
-          display: none;
-          flex-direction: column;
-          gap: 10px;
-          padding: 4px 0;
-        }
-        .order-card {
-          background: var(--bg-card);
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          padding: 14px;
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-          transition: box-shadow 0.2s;
-          position: relative;
-        }
-        .order-card:active {
-          box-shadow: 0 0 0 2px rgba(124,58,237,0.3);
-        }
-        .order-card-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-        }
-        .order-card-name {
-          font-size: 14px;
-          font-weight: 700;
-          color: var(--text-primary);
-          flex: 1;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .order-card-date {
-          font-size: 11px;
-          color: var(--text-muted);
-          white-space: nowrap;
-        }
-        .order-card-chips {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          align-items: center;
-        }
-        .order-card-chip {
-          font-size: 10px;
-          font-weight: 600;
-          padding: 2px 8px;
-          border-radius: 20px;
-          background: var(--bg-tertiary);
-          color: var(--text-muted);
-          white-space: nowrap;
-        }
-        .order-card-footer {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding-top: 8px;
-          border-top: 1px solid var(--border);
-        }
-        .order-card-total {
-          font-size: 15px;
-          font-weight: 800;
-          color: var(--accent-green);
-        }
-        .order-card-actions {
-          display: flex;
-          gap: 8px;
-        }
-        .order-card-actions button {
-          display: flex;
-          align-items: center;
-          gap: 5px;
-          padding: 6px 12px;
-          border-radius: 8px;
-          border: none;
-          font-size: 11px;
-          font-weight: 600;
-          cursor: pointer;
-          touch-action: manipulation;
-          transition: all 0.15s;
-        }
-        .order-card-btn-print {
-          background: rgba(124,58,237,0.12);
-          color: var(--accent-purple);
-        }
-        .order-card-btn-print:active { background: rgba(124,58,237,0.25); }
-        .order-card-btn-edit {
-          background: rgba(59,130,246,0.12);
-          color: #60a5fa;
-        }
-        .order-card-btn-edit:active { background: rgba(59,130,246,0.25); }
-        .order-card-btn-del {
-          background: rgba(239,68,68,0.12);
-          color: var(--accent-red);
-        }
-        .order-card-btn-del:active { background: rgba(239,68,68,0.25); }
-        .order-card-no {
-          position: absolute;
-          top: 14px;
-          right: 14px;
-          font-size: 10px;
-          color: var(--text-muted);
-          font-weight: 600;
-        }
-        [data-theme='light'] .order-card {
-          background: #ffffff;
-          border-color: #e2e8f0;
-        }
-        [data-theme='light'] .order-card-btn-edit { color: #2563eb; }
-      `}</style>
       <div className="card">
         {/* Toolbar */}
-        <div className="table-toolbar" style={{ gap: 12 }}>
-          <div className="search-box" style={{ minWidth: 240 }}>
+        <div className="table-toolbar" style={{ gap: 8 }}>
+          <div className="search-box" style={{ flex: 1, minWidth: 0, maxWidth: 320 }}>
             <Search size={15} className="search-icon" />
             <input
               value={searchQuery}
               onChange={(e) => { onSearchChange(e.target.value); setPage(1); }}
-              placeholder="Search orders…"
+              placeholder="Cari order, customer, produk…"
             />
           </div>
-          <button className="btn btn-primary" onClick={() => setShowAddModal(true)} style={{ padding: '0 16px', height: 38 }}>
-            + Add Order
-          </button>
-          <select className="filter-select" value={filterType} onChange={(e) => { setFilterType(e.target.value); setPage(1); }}>
-            <option value="">All Types</option>
-            {allTypes.map((t) => <option key={t} value={t}>{t} ({typeFreq[t] || 0})</option>)}
-          </select>
-          <select className="filter-select" value={filterPearl} onChange={(e) => { setFilterPearl(e.target.value); setPage(1); }}>
-            <option value="">All Pearls</option>
-            {allPearls.map((t) => <option key={t} value={t}>{t} ({pearlFreq[t] || 0})</option>)}
-          </select>
-          <select className="filter-select" value={filterSize} onChange={(e) => { setFilterSize(e.target.value); setPage(1); }}>
-            <option value="">All Sizes</option>
-            {allSizes.map((t) => <option key={t} value={t}>{t} ({sizeFreq[t] || 0})</option>)}
-          </select>
-          <select className="filter-select" value={filterColor} onChange={(e) => { setFilterColor(e.target.value); setPage(1); }}>
-            <option value="">All Colors</option>
-            {allColors.map((t) => <option key={t} value={t}>{t} ({colorFreq[t] || 0})</option>)}
-          </select>
-          <select className="filter-select" value={filterGrade} onChange={(e) => { setFilterGrade(e.target.value); setPage(1); }}>
-            <option value="">All Grades</option>
-            {allGrades.map((t) => <option key={t} value={t}>{t} ({gradeFreq[t] || 0})</option>)}
-          </select>
-          <select className="filter-select" value={filterPayment} onChange={(e) => { setFilterPayment(e.target.value); setPage(1); }}>
-            <option value="">All Payments</option>
-            {allPayments.map((t) => <option key={t} value={t}>{t} ({paymentFreq[t] || 0})</option>)}
-          </select>
-          <select className="filter-select" value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}>
-            <option value="">All Statuses</option>
-            <option value="pending">⏳ Pending ({statusFreq['pending'] || 0})</option>
-            <option value="dikirim">🚚 Dikirim ({statusFreq['dikirim'] || 0})</option>
-            <option value="selesai">✅ Selesai ({statusFreq['selesai'] || 0})</option>
-            <option value="retur">↩️ Retur ({statusFreq['retur'] || 0})</option>
-          </select>
+
+          {/* Filter Dropdowns */}
+          <FilterDropdown
+            label="Jenis"
+            value={filterType}
+            options={allTypes.map(t => ({ value: t, label: t, count: typeFreq[t] || 0 }))}
+            onChange={(v) => { setFilterType(v); setPage(1); }}
+          />
+          <FilterDropdown
+            label="Pearl"
+            value={filterPearl}
+            options={allPearls.map(t => ({ value: t, label: t, count: pearlFreq[t] || 0 }))}
+            onChange={(v) => { setFilterPearl(v); setPage(1); }}
+          />
+          <FilterDropdown
+            label="Status"
+            value={filterStatus}
+            options={[
+              { value: 'pending',  label: '⏳ Pending',  count: statusFreq['pending']  || 0 },
+              { value: 'dikirim', label: '🚚 Dikirim',  count: statusFreq['dikirim']  || 0 },
+              { value: 'selesai', label: '✅ Selesai',  count: statusFreq['selesai']  || 0 },
+              { value: 'retur',   label: '↩️ Retur',    count: statusFreq['retur']    || 0 },
+            ]}
+            onChange={(v) => { setFilterStatus(v); setPage(1); }}
+          />
+          <FilterDropdown
+            label="More"
+            value={filterGrade || filterPayment || filterSize || filterColor ? '1' : ''}
+            options={[]}
+            customContent={
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                <div className="filter-panel-title">Grade</div>
+                {allGrades.map(t => (
+                  <div key={t} className={`filter-panel-item${filterGrade === t ? ' selected' : ''}`}
+                    onClick={() => { setFilterGrade(filterGrade === t ? '' : t); setPage(1); }}>
+                    <span>{t}</span>
+                    <span className="fpi-count">{gradeFreq[t] || 0}</span>
+                  </div>
+                ))}
+                <div className="filter-panel-title" style={{ marginTop: 4 }}>Payment</div>
+                {allPayments.map(t => (
+                  <div key={t} className={`filter-panel-item${filterPayment === t ? ' selected' : ''}`}
+                    onClick={() => { setFilterPayment(filterPayment === t ? '' : t); setPage(1); }}>
+                    <span>{t}</span>
+                    <span className="fpi-count">{paymentFreq[t] || 0}</span>
+                  </div>
+                ))}
+                <div className="filter-panel-title" style={{ marginTop: 4 }}>Size</div>
+                {allSizes.map(t => (
+                  <div key={t} className={`filter-panel-item${filterSize === t ? ' selected' : ''}`}
+                    onClick={() => { setFilterSize(filterSize === t ? '' : t); setPage(1); }}>
+                    <span>{t}</span>
+                    <span className="fpi-count">{sizeFreq[t] || 0}</span>
+                  </div>
+                ))}
+                <div className="filter-panel-title" style={{ marginTop: 4 }}>Warna</div>
+                {allColors.map(t => (
+                  <div key={t} className={`filter-panel-item${filterColor === t ? ' selected' : ''}`}
+                    onClick={() => { setFilterColor(filterColor === t ? '' : t); setPage(1); }}>
+                    <span>{t}</span>
+                    <span className="fpi-count">{colorFreq[t] || 0}</span>
+                  </div>
+                ))}
+                {(filterGrade || filterPayment || filterSize || filterColor) && (
+                  <div className="filter-panel-clear" onClick={() => { setFilterGrade(''); setFilterPayment(''); setFilterSize(''); setFilterColor(''); setPage(1); }}>
+                    ✕ Reset
+                  </div>
+                )}
+              </div>
+            }
+            onChange={() => {}}
+          />
+
           <div className="toolbar-spacer" />
+          <button className="btn btn-primary" style={{ fontSize: 13, padding: '7px 14px' }} onClick={() => setShowAddModal(true)}>
+            + Add
+          </button>
+          <button className="btn btn-secondary" style={{ fontSize: 12, padding: '7px 10px' }} onClick={exportToCsv} title="Export ke CSV">
+            ⬇ CSV
+          </button>
           <span className="result-count">
-            {(filterType || filterPearl || filterGrade || filterPayment || filterSize || filterColor || filterStatus) ? (
-              <span style={{ color: 'var(--text-accent)' }}>Filtered: {filtered.length} of {orderRows.length} orders</span>
-            ) : (
-              <span>{filtered.length} orders</span>
-            )}
+            {(filterType || filterPearl || filterGrade || filterPayment || filterSize || filterColor || filterStatus)
+              ? <span style={{ color: '#1877F2' }}>{filtered.length}/{orderRows.length}</span>
+              : <span>{filtered.length} orders</span>
+            }
           </span>
         </div>
+
+        {/* Active filter chips */}
+        {(filterType || filterPearl || filterGrade || filterPayment || filterSize || filterColor || filterStatus) && (
+          <div className="active-filters-bar">
+            {filterType    && <span className="active-filter-chip">{filterType}    <button onClick={() => { setFilterType('');    setPage(1); }}>×</button></span>}
+            {filterPearl   && <span className="active-filter-chip">{filterPearl}   <button onClick={() => { setFilterPearl('');   setPage(1); }}>×</button></span>}
+            {filterStatus  && <span className="active-filter-chip">{filterStatus}  <button onClick={() => { setFilterStatus('');  setPage(1); }}>×</button></span>}
+            {filterGrade   && <span className="active-filter-chip">{filterGrade}   <button onClick={() => { setFilterGrade('');   setPage(1); }}>×</button></span>}
+            {filterPayment && <span className="active-filter-chip">{filterPayment} <button onClick={() => { setFilterPayment(''); setPage(1); }}>×</button></span>}
+            {filterSize    && <span className="active-filter-chip">{filterSize}    <button onClick={() => { setFilterSize('');    setPage(1); }}>×</button></span>}
+            {filterColor   && <span className="active-filter-chip">{filterColor}   <button onClick={() => { setFilterColor('');   setPage(1); }}>×</button></span>}
+            <button onClick={() => { setFilterType(''); setFilterPearl(''); setFilterGrade(''); setFilterPayment(''); setFilterSize(''); setFilterColor(''); setFilterStatus(''); setPage(1); }}
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', padding: '2px 6px' }}>
+              Reset semua
+            </button>
+          </div>
+        )}
 
         {/* Desktop Table */}
         <div className="orders-table-wrapper table-wrapper">
@@ -644,7 +880,7 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
                 <th className={focusType ? 'filtered-active sorted' : ''} onClick={() => cycleFocus(focusType, allTypes, setFocusType, 'jenis')} style={{ cursor: 'pointer' }}>
                   <div className="th-inner">
                     Type {focusType ? `(${focusType})` : ''} 
-                    <span className="sort-arrow" style={{ color: focusType ? 'var(--accent-purple)' : undefined }}>
+                    <span className="sort-arrow" style={{ color: focusType ? '#1877F2' : undefined }}>
                       {focusType ? '•' : '↕'}
                     </span>
                   </div>
@@ -652,39 +888,16 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
                 <th className={focusPearl ? 'filtered-active sorted' : ''} onClick={() => cycleFocus(focusPearl, allPearls, setFocusPearl, 'type')} style={{ cursor: 'pointer' }}>
                   <div className="th-inner">
                     Pearl {focusPearl ? `(${focusPearl})` : ''} 
-                    <span className="sort-arrow" style={{ color: focusPearl ? 'var(--accent-purple)' : undefined }}>
+                    <span className="sort-arrow" style={{ color: focusPearl ? '#1877F2' : undefined }}>
                       {focusPearl ? '•' : '↕'}
                     </span>
                   </div>
                 </th>
-                <th className={focusSize ? 'filtered-active sorted' : ''} onClick={() => cycleFocus(focusSize, allSizes, setFocusSize, 'size')} style={{ cursor: 'pointer' }}>
-                  <div className="th-inner">
-                    Size {focusSize ? `(${focusSize})` : ''} 
-                    <span className="sort-arrow" style={{ color: focusSize ? 'var(--accent-purple)' : undefined }}>
-                      {focusSize ? '•' : '↕'}
-                    </span>
-                  </div>
-                </th>
-                <th className={focusColor ? 'filtered-active sorted' : ''} onClick={() => cycleFocus(focusColor, allColors, setFocusColor, 'color')} style={{ cursor: 'pointer' }}>
-                  <div className="th-inner">
-                    Color {focusColor ? `(${focusColor})` : ''} 
-                    <span className="sort-arrow" style={{ color: focusColor ? 'var(--accent-purple)' : undefined }}>
-                      {focusColor ? '•' : '↕'}
-                    </span>
-                  </div>
-                </th>
-                <th className={focusGrade ? 'filtered-active sorted' : ''} onClick={() => cycleFocus(focusGrade, allGrades, setFocusGrade, 'grade')} style={{ cursor: 'pointer' }}>
-                  <div className="th-inner">
-                    Grade {focusGrade ? `(${focusGrade})` : ''} 
-                    <span className="sort-arrow" style={{ color: focusGrade ? 'var(--accent-purple)' : undefined }}>
-                      {focusGrade ? '•' : '↕'}
-                    </span>
-                  </div>
-                </th>
+
                 <th className={focusPayment ? 'filtered-active sorted' : ''} onClick={() => cycleFocus(focusPayment, allPayments, setFocusPayment, 'paymentVia')} style={{ cursor: 'pointer' }}>
                   <div className="th-inner">
                     Payment {focusPayment ? `(${focusPayment})` : ''} 
-                    <span className="sort-arrow" style={{ color: focusPayment ? 'var(--accent-purple)' : undefined }}>
+                    <span className="sort-arrow" style={{ color: focusPayment ? '#1877F2' : undefined }}>
                       {focusPayment ? '•' : '↕'}
                     </span>
                   </div>
@@ -703,13 +916,29 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
                       <div className="empty-icon">📦</div>
                       <div className="empty-title">No orders found</div>
                       <div className="empty-text">Try adjusting your search or filters</div>
+                      <div style={{ marginTop: 20, fontSize: 11, color: 'red', textAlign: 'left', background: '#fee2e2', padding: 10, borderRadius: 5, maxWidth: 500, margin: '20px auto' }}>
+                        <strong>Debug Info:</strong><br/>
+                        rows.length: {rows.length}<br/>
+                        orderRows.length: {orderRows.length}<br/>
+                        filtered.length: {filtered.length}<br/>
+                        Sampel baris 1: {rows.length > 0 ? JSON.stringify({ nama: rows[0].namaInstagram, jenis: rows[0].jenis }) : 'None'}<br/>
+                        Sampel baris 2: {rows.length > 1 ? JSON.stringify({ nama: rows[1].namaInstagram, jenis: rows[1].jenis }) : 'None'}<br/>
+                        Sampel baris 3: {rows.length > 2 ? JSON.stringify({ nama: rows[2].namaInstagram, jenis: rows[2].jenis }) : 'None'}
+                      </div>
                     </div>
                   </td>
                 </tr>
               ) : (
                 pageData.map((r, i) => (
-                  <tr key={r.id} style={{ background: selectedIds.includes(r.id) ? 'rgba(124, 58, 237, 0.05)' : undefined }}>
-                    <td style={{ textAlign: 'center' }}>
+                  <tr 
+                    key={r.id} 
+                    style={{ 
+                      background: selectedIds.includes(r.id) ? 'rgba(124, 58, 237, 0.05)' : undefined,
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setSelectedOrderView(r)}
+                  >
+                    <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
                         <input
                           type="checkbox"
@@ -728,7 +957,7 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
                     </td>
                     <td className="td-name">{r.namaInstagram || r.namaPengiriman || '—'}</td>
                     <td>{r.tanggalOrder || '—'}</td>
-                    <td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       {(() => {
                         const statusCfg = STATUS_CONFIG[r.orderStatus || 'pending'];
                         return (
@@ -773,13 +1002,6 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
                         <span className={`badge ${getPearlBadgeClass(r.type)}`}>{r.type}</span>
                       ) : '—'}
                     </td>
-                    <td>{r.size || '—'}</td>
-                    <td>{r.color || '—'}</td>
-                    <td>
-                      {r.grade ? (
-                        <span className="badge badge-aa">{r.grade}</span>
-                      ) : '—'}
-                    </td>
                     <td>
                       {r.paymentVia ? (
                         <span className="badge badge-default">{r.paymentVia}</span>
@@ -787,10 +1009,10 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
                     </td>
                     <td style={{ color: 'var(--accent-green)', fontWeight: 700 }}>
                       {r.totalBayar
-                        ? `Rp ${parseInt(r.totalBayar.replace(/\D/g, '') || '0', 10).toLocaleString('id-ID')}`
+                        ? `Rp ${cleanPrice(r.totalBayar).toLocaleString('id-ID')}`
                         : '—'}
                     </td>
-                    <td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
                         <button
                           className="icon-btn"
@@ -857,7 +1079,12 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
             pageData.map((r, i) => {
               const statusCfg = STATUS_CONFIG[r.orderStatus || 'pending'];
               return (
-                <div key={r.id} className="order-card">
+                <div 
+                  key={r.id} 
+                  className="order-card"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setSelectedOrderView(r)}
+                >
                   <span className="order-card-no">#{(safePage - 1) * rowsPerPage + i + 1}</span>
                   <div className="order-card-header">
                     <div className="order-card-name">{r.namaInstagram || r.namaPengiriman || '—'}</div>
@@ -868,6 +1095,7 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
                     <select
                       value={r.orderStatus || 'pending'}
                       onChange={(e) => onEditOrder(r.id, { orderStatus: e.target.value as any })}
+                      onClick={(e) => e.stopPropagation()}
                       style={{
                         fontSize: 10,
                         fontWeight: 700,
@@ -901,10 +1129,10 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
                   <div className="order-card-footer">
                     <div className="order-card-total">
                       {r.totalBayar
-                        ? `Rp ${parseInt(r.totalBayar.replace(/\D/g, '') || '0', 10).toLocaleString('id-ID')}`
+                        ? `Rp ${cleanPrice(r.totalBayar).toLocaleString('id-ID')}`
                         : '—'}
                     </div>
-                    <div className="order-card-actions">
+                    <div className="order-card-actions" onClick={(e) => e.stopPropagation()}>
                       <button
                         className="order-card-btn-print"
                         onClick={() => {
@@ -991,6 +1219,718 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
           }}
           onClose={() => setEditingOrder(null)}
         />
+      )}
+
+      {selectedOrderView && createPortal(
+        <div 
+          className="modal-overlay" 
+          style={{ 
+            position: 'fixed', 
+            inset: 0, 
+            zIndex: 1000, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            padding: 0, 
+            background: 'rgba(15, 23, 42, 0.65)', 
+            backdropFilter: 'blur(10px)',
+            animation: 'fadeIn 0.25s ease-out'
+          }}
+          onClick={() => setSelectedOrderView(null)}
+        >
+          <div 
+            className="modal-panel" 
+            style={{ 
+              width: '100%', 
+              maxWidth: '850px', 
+              maxHeight: '90vh', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              background: 'var(--bg-card)', 
+              border: '1px solid var(--border)', 
+              borderRadius: '16px', 
+              overflow: 'hidden', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              animation: 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div 
+              style={{ 
+                padding: '20px 24px', 
+                borderBottom: '1px solid var(--border)', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                background: 'linear-gradient(to right, rgba(124, 58, 237, 0.05), rgba(0, 0, 0, 0))'
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+                    Detail Pesanan
+                  </span>
+                  {(() => {
+                    const statusCfg = STATUS_CONFIG[selectedOrderView.orderStatus || 'pending'];
+                    return (
+                      <span 
+                        style={{ 
+                          fontSize: 11, 
+                          fontWeight: 700, 
+                          padding: '3px 10px', 
+                          borderRadius: '12px', 
+                          color: statusCfg?.color || 'var(--text-muted)',
+                          background: statusCfg?.bg || 'rgba(255,255,255,0.05)',
+                          border: `1px solid ${statusCfg?.color || 'transparent'}`
+                        }}
+                      >
+                        {statusCfg?.label || '⏳ Pending'}
+                      </span>
+                    );
+                  })()}
+                  {/* DP Badge — shown when keterangan contains [DP] marker */}
+                  {selectedOrderView.keterangan?.includes('[DP]') && (
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      color: '#d97706',
+                      background: 'rgba(217,119,6,0.12)',
+                      border: '1px solid rgba(217,119,6,0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}>
+                      💰 BAYAR DP
+                    </span>
+                  )}
+                </div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', margin: 0, marginTop: 4 }}>
+                  Order ID: {selectedOrderView.no ? `#${selectedOrderView.no}` : `#${selectedOrderView.id.substring(0, 8)}`}
+                </h2>
+              </div>
+              
+              <button 
+                className="icon-btn" 
+                onClick={() => setSelectedOrderView(null)}
+                style={{ 
+                  width: 36, 
+                  height: 36, 
+                  borderRadius: '50%', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  transition: 'background-color 0.2s',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--border)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {/* Row 1: 2-Column Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20 }}>
+                
+                {/* Column A: Pelanggan & Pengiriman */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div 
+                    style={{ 
+                      background: 'var(--bg-tertiary)', 
+                      border: '1px solid var(--border)', 
+                      borderRadius: '12px', 
+                      padding: '16px 20px',
+                      height: '100%'
+                    }}
+                  >
+                    <h4 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                      <MapPin size={16} style={{ color: 'var(--accent-purple)' }} />
+                      Info Pelanggan & Pengiriman
+                    </h4>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Nama Pelanggan / IG</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {selectedOrderView.namaInstagram || '—'}
+                        </span>
+                        {selectedOrderView.instagram && (
+                          <a 
+                            href={selectedOrderView.instagram.startsWith('http') ? selectedOrderView.instagram : `https://instagram.com/${selectedOrderView.instagram.replace(/^@/, '')}`}
+                            target="_blank" 
+                            rel="noreferrer"
+                            style={{ fontSize: 12, color: 'var(--accent-purple)', fontWeight: 600, textDecoration: 'underline' }}
+                          >
+                            @{(() => {
+                              let u = selectedOrderView.instagram.trim();
+                              if (u.includes('instagram.com/')) {
+                                u = u.split('instagram.com/')[1].split('/')[0].split('?')[0];
+                              }
+                              return u.replace(/^@/, '');
+                            })()}
+                          </a>
+                        )}
+                      </div>
+
+                      {selectedOrderView.wa && (
+                        <div>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>WhatsApp</span>
+                          <a 
+                            href={`https://wa.me/${selectedOrderView.wa.replace(/\D/g, '')}`} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 4 }}
+                          >
+                            {selectedOrderView.wa} 
+                            <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(16,185,129,0.1)', color: '#10b981', fontWeight: 600 }}>Chat WhatsApp</span>
+                          </a>
+                        </div>
+                      )}
+
+                      <div>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Penerima</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{selectedOrderView.namaPengiriman || '—'}</span>
+                      </div>
+
+                      <div>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Alamat Penerima</span>
+                        <span style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.5, display: 'block', marginTop: 2 }}>
+                          {selectedOrderView.alamat || '—'}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <div>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Ekspedisi / Kurir</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {(() => {
+                              const isNumericCourier = selectedOrderView.kurir ? /^\\d+$/.test(selectedOrderView.kurir.trim().replace(/[\\s\\.\\,\\-]/g, '')) : false;
+                              return selectedOrderView.kurir && !isNumericCourier ? selectedOrderView.kurir.toUpperCase() : 'JNE/J&T';
+                            })()}
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>No. Resi</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {(() => {
+                              const isNumericCourier = selectedOrderView.kurir ? /^\\d+$/.test(selectedOrderView.kurir.trim().replace(/[\\s\\.\\,\\-]/g, '')) : false;
+                              return selectedOrderView.resi || (isNumericCourier ? selectedOrderView.kurir : '—');
+                            })()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Column B: Item Pesanan */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div 
+                    style={{ 
+                      background: 'var(--bg-tertiary)', 
+                      border: '1px solid var(--border)', 
+                      borderRadius: '12px', 
+                      padding: '16px 20px',
+                      height: '100%',
+                      overflowY: 'auto',
+                      maxHeight: 340
+                    }}
+                  >
+                    <h4 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                      <Package size={16} style={{ color: 'var(--accent-purple)' }} />
+                      Item Pesanan ({relatedOrderRows.length})
+                    </h4>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {relatedOrderRows.map((item) => {
+                        const resolvedImg = resolveImageUrl(item.gambar);
+                        const isGP = isGooglePhotos(item.gambar);
+                        return (
+                          <div 
+                            key={item.id}
+                            style={{ 
+                              display: 'flex', 
+                              gap: 12, 
+                              padding: '10px', 
+                              background: 'var(--bg-card)', 
+                              border: '1px solid var(--border)', 
+                              borderRadius: '10px',
+                              alignItems: 'center',
+                            }}
+                          >
+                            {/* Thumbnail (Only show if there is an image) */}
+                            {item.gambar && (
+                              <div 
+                                style={{ 
+                                  width: 48, 
+                                  height: 48, 
+                                  borderRadius: 8, 
+                                  overflow: 'hidden', 
+                                  border: '1px solid var(--border)',
+                                  background: 'var(--bg-secondary)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                  cursor: 'pointer'
+                                }}
+                                onClick={() => { 
+                                  if (isGP) {
+                                    window.open(item.gambar, '_blank');
+                                  } else {
+                                    setLightbox({ src: resolvedImg, label: `${item.jenis || 'Produk'} ${item.kode ? `- ${item.kode}` : ''}` });
+                                  }
+                                }}
+                              >
+                                {isGP ? (
+                                  <span style={{ fontSize: 18 }} title="Foto di Google Photos — klik untuk buka">📸</span>
+                                ) : (
+                                  <img src={resolvedImg} alt={item.jenis} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    onError={(e) => { const t = e.target as HTMLImageElement; t.style.display='none'; if(t.parentElement) t.parentElement.style.display='none'; }}
+                                  />
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Product Details */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                                <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
+                                  {item.jenis || 'Perhiasan Mutiara'}
+                                </span>
+                                {item.kode && (
+                                  <span style={{ fontSize: 10, padding: '2px 6px', background: 'var(--bg-tertiary)', color: 'var(--text-muted)', borderRadius: 4, fontFamily: 'monospace', fontWeight: 600, border: '1px solid var(--border)' }}>
+                                    {item.kode}
+                                  </span>
+                                )}
+                                {item.type && <span className={`badge ${getPearlBadgeClass(item.type)}`} style={{ fontSize: 10, padding: '2px 6px' }}>{item.type}</span>}
+                              </div>
+                              
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '4px 8px', fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                                {item.size && <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>📏 <span>{item.size.replace('mm', '')}mm</span></div>}
+                                {item.shape && <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>💧 <span>{item.shape}</span></div>}
+                                {item.color && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    🎨 <span>{item.color}</span>
+                                  </div>
+                                )}
+                                {item.grade && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    ⭐ <span>Grade <strong style={{ color: 'var(--text-primary)' }}>{item.grade}</strong></span>
+                                  </div>
+                                )}
+                                {(item.rangka || item.gramasiRangka) && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    💍 <span>{item.rangka || 'Rangka'} {item.gramasiRangka ? `(${item.gramasiRangka}g)` : ''}</span>
+                                  </div>
+                                )}
+                                {(item.stone || item.stoneWeight) && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    💎 <span>{item.stone || 'Batu'} {item.stoneWeight ? `(${item.stoneWeight.replace(/ct/g, '').trim()} ct)` : ''}</span>
+                                  </div>
+                                )}
+                              </div>
+
+
+                            </div>
+
+                            {/* Price */}
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--text-primary)' }}>
+                                {(!item.totalBayar || item.totalBayar === '0') ? '—' : `Rp ${cleanPrice(item.totalBayar).toLocaleString('id-ID')}`}
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>qty: {item.qty || '1'}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+                {/* Row 2: Rincian Biaya & Pembayaran (moved here, full width) */}
+              <div 
+                style={{ 
+                  background: 'var(--bg-tertiary)', 
+                  border: '1px solid var(--border)', 
+                  borderRadius: '12px', 
+                  padding: '20px' 
+                }}
+              >
+                <h4 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                  <CreditCard size={16} style={{ color: 'var(--accent-purple)' }} />
+                  Rincian Biaya & Pembayaran
+                </h4>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5 }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Harga Barang (Bersih)</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {`Rp ${relatedOrderRows.reduce((acc, curr) => acc + parseInt((curr.hargaBersih || '0').replace(/\D/g, '') || '0', 10), 0).toLocaleString('id-ID')}`}
+                      </span>
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5 }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Biaya Kirim (Ongkir)</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {`Rp ${relatedOrderRows.reduce((acc, curr) => acc + parseInt((curr.ongkir || '0').replace(/\D/g, '') || '0', 10), 0).toLocaleString('id-ID')}`}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Total Pembayaran</span>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent-green)' }}>
+                        {`Rp ${relatedOrderRows.reduce((acc, curr) => acc + parseInt((curr.totalBayar || '0').replace(/\D/g, '') || '0', 10), 0).toLocaleString('id-ID')}`}
+                      </span>
+                    </div>
+
+                    {/* DP Breakdown — only shown when keterangan contains [DP] */}
+                    {(() => {
+                      const ket = relatedOrderRows[0]?.keterangan || selectedOrderView.keterangan || '';
+                      const dpLineMatch = ket.match(/\[DP\]\s*(.+)/s);
+                      if (!dpLineMatch) return null;
+                      const dpLine = dpLineMatch[1].trim();
+                      // Parse DP parts from e.g. "DP 1: Rp 6.000.000 | Pelunasan: Rp 10.000.000"
+                      const parts = dpLine.split('|').map(s => s.trim());
+                      return (
+                        <div style={{
+                          marginTop: 8,
+                          padding: '12px 14px',
+                          background: 'rgba(217,119,6,0.07)',
+                          border: '1px solid rgba(217,119,6,0.25)',
+                          borderRadius: 10
+                        }}>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            💰 Rincian Pembayaran DP
+                          </div>
+                          {parts.map((part, i) => {
+                            const isDP = part.toLowerCase().includes('dp');
+                            return (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                                <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>
+                                  {part.split(':')[0]?.trim() || part}
+                                </span>
+                                <span style={{ fontWeight: 700, color: isDP ? '#d97706' : '#10b981' }}>
+                                  {part.split(':').slice(1).join(':').trim() || ''}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, background: 'var(--bg-secondary)', padding: '12px 16px', borderRadius: 10 }}>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: 11, textTransform: 'uppercase', fontWeight: 600 }}>Metode Pembayaran</span>
+                      <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 14, marginTop: 4, display: 'block' }}>{selectedOrderView.paymentVia || '—'}</span>
+                    </div>
+                    {selectedOrderView.tanggalOrder && (
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: 11, textTransform: 'uppercase', fontWeight: 600 }}>Tanggal Order</span>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 14, marginTop: 4, display: 'block' }}>{selectedOrderView.tanggalOrder}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 3: Keterangan & Catatan — strip [DP] line, shown separately in payment section */}
+              {/* Row 3: Keterangan & Catatan — strip [DP] line, shown separately in payment section */}
+              {relatedOrderRows.some(r => r.keterangan) && (() => {
+                // Combine all unique keterangans from related rows
+                const allKeterangans = relatedOrderRows.map(r => r.keterangan).filter(Boolean);
+                // Deduplicate in case multiple rows have the exact same description
+                const uniqueKeterangans = Array.from(new Set(allKeterangans));
+                
+                const combinedKeterangan = uniqueKeterangans.join('\n\n');
+                const prodOnly = combinedKeterangan.replace(/\n*\[DP\][\s\S]*$/, '').trim();
+                if (!prodOnly) return null;
+                
+                return (
+                  <div 
+                    style={{ 
+                      background: 'rgba(124, 58, 237, 0.04)', 
+                      border: '1px dashed rgba(124, 58, 237, 0.2)', 
+                      borderRadius: '12px', 
+                      padding: '16px 20px' 
+                    }}
+                  >
+                    <h4 style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--accent-purple)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Keterangan / Catatan Order
+                    </h4>
+                    <p style={{ fontSize: 13.5, color: 'var(--text-primary)', lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>
+                      {prodOnly.replace(/(?:^|\s+)(\d+\.)/g, '\n\n$1').replace(/\s*•\s*/g, '\n  • ').trim()}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Row 4: Attachments / Bukti Transfer / Media */}
+              {uniquePhotos.length > 0 && (
+                <div>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
+                    <Camera size={16} style={{ color: 'var(--accent-purple)' }} />
+                    Lampiran & Foto Bukti
+                  </h4>
+
+                  <div style={{ display: 'flex', gap: 20, overflowX: 'auto', paddingBottom: 14, paddingTop: 4, scrollSnapType: 'x mandatory' }}>
+                    {uniquePhotos.map((photo, pIdx) => (
+                      photo.isGoogle ? (
+                        <div 
+                          key={pIdx}
+                          style={{ 
+                            minWidth: 300,
+                            flexShrink: 0,
+                            scrollSnapAlign: 'start',
+                            borderRadius: 14, 
+                            border: '2px dashed rgba(24,119,242,0.4)',
+                            background: 'linear-gradient(135deg, rgba(24,119,242,0.07), rgba(59,130,246,0.05))',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '24px 20px',
+                            textAlign: 'center',
+                            boxShadow: '0 4px 12px rgba(24,119,242,0.1)',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#1877F2'; e.currentTarget.style.background = 'linear-gradient(135deg, rgba(24,119,242,0.12), rgba(59,130,246,0.08))'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(24,119,242,0.4)'; e.currentTarget.style.background = 'linear-gradient(135deg, rgba(24,119,242,0.07), rgba(59,130,246,0.05))'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                        >
+                          <div style={{ fontSize: 40, marginBottom: 12 }}>☁️</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
+                            Foto di Google Photos / Drive
+                          </div>
+                          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 16, maxWidth: 220 }}>
+                            {photo.label} · Pilih tempat membuka foto:
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                            <button 
+                              onClick={() => window.open(photo.url, '_blank')}
+                              style={{ 
+                                padding: '8px 18px', 
+                                borderRadius: 8, 
+                                fontSize: 12, 
+                                background: '#1877F2', 
+                                color: 'white', 
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6,
+                                border: 'none',
+                                cursor: 'pointer',
+                                width: '100%'
+                              }}
+                            >
+                              📸 Buka Link Google Photos Asli
+                            </button>
+                            <button 
+                              onClick={() => window.open('https://drive.google.com/drive/folders/1ZeIzX1r6yrcER3HcUB_goeNUpOHfPODN?usp=sharing', '_blank')}
+                              style={{ 
+                                padding: '8px 12px', 
+                                background: 'var(--accent-green)', 
+                                borderRadius: 8, 
+                                fontSize: 11, 
+                                color: 'white', 
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6,
+                                border: 'none',
+                                cursor: 'pointer',
+                                width: '100%'
+                              }}
+                            >
+                              📂 Buka Folder Google Drive
+                            </button>
+                            <button
+                              title="Hapus tautan foto ini"
+                              onClick={async () => {
+                                if (!window.confirm('Hapus foto ini dari pesanan?')) return;
+                                const targetRow = rows.find(r => r.id === photo.orderId);
+                                if (!targetRow) return;
+                                const patch = photo.isMain
+                                  ? { gambar: '' }
+                                  : { attachments: (targetRow.attachments || []).filter(a => a !== photo.originalName) };
+                                await onEditOrder(photo.orderId, patch);
+                                if (selectedOrderView && selectedOrderView.id === photo.orderId) {
+                                  setSelectedOrderView({ ...selectedOrderView, ...patch });
+                                }
+                              }}
+                              style={{
+                                marginTop: 8,
+                                padding: '6px 12px',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                color: 'var(--accent-red)',
+                                borderRadius: 8,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                width: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
+                              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                            >
+                              <Trash2 size={12} /> Hapus Tautan Foto Lama
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div key={pIdx} style={{ scrollSnapAlign: 'start' }}>
+                          <DriveImageCard
+                            photo={photo}
+                            onOpenLightbox={(src, label) => setLightbox({ src, label })}
+                            onUpdateUrl={async (newUrl) => {
+                              const targetRow = rows.find(r => r.id === photo.orderId);
+                              if (!targetRow) return;
+                              const patch = photo.isMain
+                                ? { gambar: newUrl }
+                                : { attachments: (targetRow.attachments || []).map(a => a === photo.originalName ? newUrl : a) };
+                              await onEditOrder(photo.orderId, patch);
+                              if (selectedOrderView && selectedOrderView.id === photo.orderId) {
+                                setSelectedOrderView({ ...selectedOrderView, ...patch });
+                              }
+                            }}
+                            onDelete={async () => {
+                              if (!window.confirm('Hapus foto ini dari pesanan?')) return;
+                              const targetRow = rows.find(r => r.id === photo.orderId);
+                              if (!targetRow) return;
+                              const patch = photo.isMain
+                                ? { gambar: '' }
+                                : { attachments: (targetRow.attachments || []).filter(a => a !== photo.originalName) };
+                              await onEditOrder(photo.orderId, patch);
+                              if (selectedOrderView && selectedOrderView.id === photo.orderId) {
+                                setSelectedOrderView({ ...selectedOrderView, ...patch });
+                              }
+                            }}
+                          />
+                        </div>
+                      )
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Lightbox */}
+            {lightbox && (
+              <div
+                onClick={() => setLightbox(null)}
+                style={{
+                  position: 'fixed', inset: 0, zIndex: 9999,
+                  background: 'rgba(0,0,0,0.88)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  backdropFilter: 'blur(6px)',
+                  animation: 'fadeIn 0.18s ease'
+                }}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}
+                >
+                  <img
+                    src={lightbox.src}
+                    alt={lightbox.label}
+                    style={{ maxWidth: '88vw', maxHeight: '80vh', borderRadius: 14, objectFit: 'contain', boxShadow: '0 20px 60px rgba(0,0,0,0.7)' }}
+                  />
+                  <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 600, textAlign: 'center' }}>{lightbox.label}</div>
+                  <button
+                    onClick={() => setLightbox(null)}
+                    style={{
+                      position: 'absolute', top: -14, right: -14,
+                      width: 36, height: 36, borderRadius: '50%',
+                      background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                      color: 'white', fontSize: 18, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      backdropFilter: 'blur(4px)'
+                    }}
+                  >✕</button>
+                  <button
+                    onClick={() => window.open(lightbox.src, '_blank')}
+                    style={{
+                      marginTop: 4, padding: '8px 22px',
+                      background: 'rgba(124,58,237,0.85)', border: 'none',
+                      borderRadius: 10, color: 'white', fontWeight: 700, fontSize: 13,
+                      cursor: 'pointer', backdropFilter: 'blur(4px)'
+                    }}
+                  >🔗 Buka di Tab Baru</button>
+                </div>
+              </div>
+            )}
+
+            {/* Footer / Actions */}
+            <div 
+              style={{ 
+                padding: '16px 24px', 
+                borderTop: '1px solid var(--border)', 
+                display: 'flex', 
+                justifyContent: 'flex-end', 
+                gap: 12, 
+                background: 'var(--bg-secondary)' 
+              }}
+            >
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  const customer: Customer = customers.find(c => c.nama.toLowerCase() === selectedOrderView.namaInstagram.toLowerCase())
+                    || {
+                      id: '',
+                      nama: selectedOrderView.namaInstagram || selectedOrderView.namaPengiriman || 'Pelanggan',
+                      wa: selectedOrderView.wa || '',
+                      alamat: selectedOrderView.alamat || '',
+                      city: '',
+                      orders: [],
+                      totalSpend: 0,
+                      orderCount: 0,
+                      lastOrder: '',
+                      instagram: selectedOrderView.instagram || '',
+                      tanggalUlangTahun: selectedOrderView.tanggalUlangTahun || ''
+                    };
+                  printInvoice(customer, relatedOrderRows);
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <Printer size={15} /> Cetak Nota
+              </button>
+              <button 
+                className="btn btn-primary"
+                onClick={() => {
+                  setEditingOrder(selectedOrderView);
+                  setSelectedOrderView(null);
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <Edit2 size={15} /> Edit Order
+              </button>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => setSelectedOrderView(null)}
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {selectedIds.length > 0 && (

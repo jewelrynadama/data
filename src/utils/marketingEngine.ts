@@ -1,16 +1,13 @@
-// src/utils/marketingEngine.ts
 import type { Customer, CustomerRow } from '../types';
+import { cleanPrice, parseDateParts } from './csvLoader';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 export function parseDate(dateStr: string): Date | null {
-  if (!dateStr) return null;
-  const parts = dateStr.trim().split('/');
-  if (parts.length !== 3) return null;
-  const [d, m, y] = parts.map(Number);
-  if (isNaN(d) || isNaN(m) || isNaN(y)) return null;
-  return new Date(y, m - 1, d);
+  const parsed = parseDateParts(dateStr);
+  if (!parsed) return null;
+  return new Date(parsed.year, parsed.month - 1, parsed.day);
 }
 
 export function formatRupiah(amount: number): string {
@@ -96,7 +93,7 @@ export function getBundleRecommendations(rows: CustomerRow[]): BundleRecommendat
   const byCustomer: Record<string, string[]> = {};
   const avgRevenue =
     rows.length > 0
-      ? rows.reduce((s, r) => s + parseInt(r.totalBayar?.replace(/\D/g, '') || '0', 10), 0) / rows.length
+      ? rows.reduce((s, r) => s + cleanPrice(r.totalBayar), 0) / rows.length
       : 500000;
 
   for (const row of rows) {
@@ -167,7 +164,7 @@ export function getProductPerformance(rows: CustomerRow[]): {
       if (!key || key === '—') continue;
       if (!map[key]) map[key] = { count: 0, revenue: 0, lastDate: null };
       map[key].count++;
-      map[key].revenue += parseInt(r.totalBayar?.replace(/\D/g, '') || '0', 10);
+      map[key].revenue += cleanPrice(r.totalBayar);
       const d = parseDate(r.tanggalOrder);
       if (d && (!map[key].lastDate || d > map[key].lastDate!)) map[key].lastDate = d;
     }

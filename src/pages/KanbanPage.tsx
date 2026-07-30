@@ -22,7 +22,6 @@ const COLUMNS: { status: KanbanStatus; label: string; icon: React.ReactNode; col
   { status: 'selesai',  label: 'Selesai',  icon: <CheckCircle size={14} />, color: '#10b981', bg: 'rgba(16,185,129,0.08)' },
 ];
 
-// Map existing orderStatus values to kanban statuses
 function toKanban(status: string | undefined): KanbanStatus {
   if (status === 'pending') return 'pending';
   if (status === 'dikirim') return 'dikirim';
@@ -37,18 +36,65 @@ function toOrderStatus(kanban: KanbanStatus): CustomerRow['orderStatus'] {
   return undefined; // "proses" = no status (default)
 }
 
+function parseDateStr(str: string): number {
+  if (!str) return NaN;
+  const parts = str.split(/[-/]/);
+  if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
+    return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+  }
+  return new Date(str).getTime();
+}
+
+function getSlaBadge(status: KanbanStatus, dateStr: string) {
+  if (!dateStr) return null;
+  const time = parseDateStr(dateStr);
+  if (isNaN(time)) return null;
+  const now = new Date('2026-07-30T19:00:06+07:00').getTime();
+  const diffDays = Math.floor((now - time) / 86400000);
+  
+  if (diffDays < 1) return null;
+  
+  if (status === 'pending') {
+    return <span style={{ fontSize: 10, background: 'var(--bg-input)', padding: '2px 6px', borderRadius: 4, color: 'var(--text-muted)' }}>{diffDays} hari</span>;
+  }
+  if (status === 'proses') {
+    if (diffDays > 3) {
+      return <span style={{ fontSize: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: 4 }}>🔴 {diffDays} hari</span>;
+    } else if (diffDays > 2) {
+      return <span style={{ fontSize: 10, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', padding: '2px 6px', borderRadius: 4 }}>⚠️ {diffDays} hari</span>;
+    } else {
+      return <span style={{ fontSize: 10, background: 'var(--bg-input)', padding: '2px 6px', borderRadius: 4, color: 'var(--text-muted)' }}>{diffDays} hari</span>;
+    }
+  }
+  if (status === 'dikirim') {
+    return <span style={{ fontSize: 10, background: 'var(--bg-input)', padding: '2px 6px', borderRadius: 4, color: 'var(--text-muted)' }}>{diffDays} hari</span>;
+  }
+  return null;
+}
+
 export default function KanbanPage({ rows, customers, settings, onEditOrder }: Props) {
   const [search, setSearch] = useState('');
   const [movingId, setMovingId] = useState<string | null>(null);
+  const [activeKurir, setActiveKurir] = useState<string>('Semua');
+  const [waModalOrder, setWaModalOrder] = useState<CustomerRow | null>(null);
 
-  // Only show recent 200 orders to keep kanban manageable
+  const uniqueKurir = useMemo(() => {
+    const counts: Record<string, number> = {};
+    rows.forEach(r => {
+      const k = (r as any).kurir || 'Lainnya';
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    return counts;
+  }, [rows]);
+
   const recentRows = useMemo(() =>
     rows
       .slice()
       .sort((a, b) => b.tanggalOrder.localeCompare(a.tanggalOrder))
       .slice(0, 200)
-      .filter((r) => !search || r.namaInstagram.toLowerCase().includes(search.toLowerCase()) || (r.resi || '').toLowerCase().includes(search.toLowerCase())),
-    [rows, search]
+      .filter((r) => !search || r.namaInstagram.toLowerCase().includes(search.toLowerCase()) || (r.resi || '').toLowerCase().includes(search.toLowerCase()))
+      .filter((r) => activeKurir === 'Semua' || ((r as any).kurir || 'Lainnya') === activeKurir),
+    [rows, search, activeKurir]
   );
 
   const columns = useMemo(() => {
@@ -89,14 +135,65 @@ export default function KanbanPage({ rows, customers, settings, onEditOrder }: P
         </div>
       </div>
 
+      {/* Courier Filter Pills */}
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 20, paddingBottom: 4 }}>
+        <button
+          onClick={() => setActiveKurir('Semua')}
+          style={{
+            padding: '6px 12px',
+            borderRadius: 20,
+            border: '1px solid var(--border)',
+            background: activeKurir === 'Semua' ? 'var(--accent-blue, #3b82f6)' : 'var(--bg-card)',
+            color: activeKurir === 'Semua' ? '#fff' : 'var(--text-primary)',
+            fontSize: 12,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          Semua ({rows.length})
+        </button>
+        {Object.entries(uniqueKurir).sort((a, b) => b[1] - a[1]).map(([kurir, count]) => (
+          <button
+            key={kurir}
+            onClick={() => setActiveKurir(kurir)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 20,
+              border: '1px solid var(--border)',
+              background: activeKurir === kurir ? 'var(--accent-blue, #3b82f6)' : 'var(--bg-card)',
+              color: activeKurir === kurir ? '#fff' : 'var(--text-primary)',
+              fontSize: 12,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {kurir} ({count})
+          </button>
+        ))}
+      </div>
+
+      <style>{`
+        .kanban-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 14px;
+          align-items: start;
+        }
+        @media (max-width: 768px) {
+          .kanban-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+
       {/* Kanban Board */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, alignItems: 'start' }} className="kanban-grid">
+      <div className="kanban-grid">
         {COLUMNS.map((col) => {
           const colRows = columns[col.status];
           const colValue = colRows.reduce((s, r) => s + (parseInt((r.totalBayar || '').replace(/\D/g, ''), 10) || 0), 0);
 
           return (
-            <div key={col.status} style={{ background: col.bg, border: `1px solid ${col.color}33`, borderRadius: 14, overflow: 'hidden', minHeight: 200 }}>
+            <div key={col.status} className="kanban-col" style={{ background: col.bg, border: `1px solid ${col.color}33`, borderRadius: 14, overflow: 'hidden', minHeight: 200 }}>
               {/* Column Header */}
               <div style={{ padding: '12px 14px', borderBottom: `1px solid ${col.color}33`, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ color: col.color }}>{col.icon}</span>
@@ -125,9 +222,10 @@ export default function KanbanPage({ rows, customers, settings, onEditOrder }: P
                       {/* Product */}
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{order.jenis || order.type || 'Perhiasan'}{order.size ? ` · ${order.size}mm` : ''}</div>
                       {/* Date & Resi */}
-                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 6 }}>
-                        📅 {order.tanggalOrder || '—'}
-                        {order.resi && <span style={{ marginLeft: 8 }}>📦 {order.resi}</span>}
+                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                        <span>📅 {order.tanggalOrder || '—'}</span>
+                        {getSlaBadge(col.status, order.tanggalOrder)}
+                        {order.resi && <span>📦 {order.resi}</span>}
                       </div>
                       {/* Amount */}
                       {total > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-green)', marginBottom: 8 }}>{formatRupiah(total)}</div>}
@@ -147,7 +245,13 @@ export default function KanbanPage({ rows, customers, settings, onEditOrder }: P
                           </button>
                         )}
                         {colIdx < COLUMNS.length - 1 && (
-                          <button className="btn btn-primary" style={{ flex: 1, fontSize: 10, padding: '3px 0', justifyContent: 'center', gap: 3 }} onClick={() => handleMove(order.id, 'forward')}>
+                          <button className="btn btn-primary" style={{ flex: 1, fontSize: 10, padding: '3px 0', justifyContent: 'center', gap: 3 }} onClick={() => {
+                            if (col.status === 'proses' && COLUMNS[colIdx + 1].status === 'dikirim') {
+                              setWaModalOrder(order);
+                            } else {
+                              handleMove(order.id, 'forward');
+                            }
+                          }}>
                             {COLUMNS[colIdx + 1].label} <ChevronRight size={11} />
                           </button>
                         )}
@@ -166,6 +270,70 @@ export default function KanbanPage({ rows, customers, settings, onEditOrder }: P
         @media (max-width: 900px) { .kanban-grid { grid-template-columns: repeat(2, 1fr) !important; } }
         @media (max-width: 600px) { .kanban-grid { grid-template-columns: 1fr !important; } }
       `}</style>
+      
+      {/* WA Trigger Modal */}
+      {waModalOrder && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-card)', padding: 24, borderRadius: 12, width: '90%', maxWidth: 400, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ marginTop: 0, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)' }}>📦 Kirim Notifikasi ke Customer?</h3>
+            <div style={{ marginBottom: 16, fontSize: 14, color: 'var(--text-primary)' }}>
+              <strong>{waModalOrder.namaInstagram}</strong> - Resi: {waModalOrder.resi || 'Belum ada'}
+            </div>
+            <div style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', padding: 12, borderRadius: 8, fontSize: 13, whiteSpace: 'pre-wrap', marginBottom: 16, fontFamily: 'monospace' }}>
+{`Halo Kak *${waModalOrder.namaInstagram}* 👋
+
+Pesanan Anda sudah dikirim! 📦
+
+🚚 Kurir: ${(waModalOrder as any).kurir || '-'}
+📋 No. Resi: *${waModalOrder.resi || '-'}*
+
+Pantau paket Anda di website ekspedisi ya Kak!
+Terima kasih sudah berbelanja! 💎✨`}
+            </div>
+            {!waModalOrder.resi && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 16 }}>⚠️ Nomor resi belum diisi</div>}
+            <div style={{ display: 'flex', gap: 12, flexDirection: 'column' }}>
+              <button 
+                className="btn btn-primary" 
+                style={{ opacity: !waModalOrder.resi ? 0.5 : 1, cursor: !waModalOrder.resi ? 'not-allowed' : 'pointer', justifyContent: 'center' }}
+                disabled={!waModalOrder.resi}
+                onClick={() => {
+                  if (!waModalOrder.resi) return;
+                  const msg = `Halo Kak *${waModalOrder.namaInstagram}* 👋\n\nPesanan Anda sudah dikirim! 📦\n\n🚚 Kurir: ${(waModalOrder as any).kurir || '-'}\n📋 No. Resi: *${waModalOrder.resi || '-'}*\n\nPantau paket Anda di website ekspedisi ya Kak!\nTerima kasih sudah berbelanja! 💎✨`;
+                  const c = customers.find(x => x.instagram === waModalOrder.namaInstagram || x.nama === waModalOrder.namaInstagram);
+                  const phone = c?.wa || '';
+                  const phoneFormat = phone.replace(/\D/g, '').replace(/^0/, '62');
+                  if (phoneFormat) {
+                    window.open(`https://wa.me/${phoneFormat}?text=${encodeURIComponent(msg)}`, '_blank');
+                  } else {
+                    alert('Nomor HP customer tidak ditemukan atau format salah.');
+                  }
+                  handleMove(waModalOrder.id, 'forward');
+                  setWaModalOrder(null);
+                }}
+              >
+                📱 Kirim WA + Pindahkan
+              </button>
+              <button 
+                className="btn btn-secondary" 
+                style={{ justifyContent: 'center' }}
+                onClick={() => {
+                  handleMove(waModalOrder.id, 'forward');
+                  setWaModalOrder(null);
+                }}
+              >
+                Pindahkan Saja
+              </button>
+              <button 
+                className="btn" 
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', justifyContent: 'center' }}
+                onClick={() => setWaModalOrder(null)}
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

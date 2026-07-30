@@ -1,20 +1,64 @@
-// src/utils/reportHelper.ts
 import type { Customer, CustomerRow } from '../types';
-import { formatRupiah } from './csvLoader';
+import { formatRupiah, cleanPrice } from './csvLoader';
 
 function parseAmount(val: string | undefined): number {
-  if (!val) return 0;
-  return parseInt(val.replace(/\D/g, ''), 10) || 0;
+  return cleanPrice(val);
 }
 
 interface MonthlyStats {
   totalRevenue: number;
   totalOrders: number;
+  aov: number;
   newCustomers: number;
   repeatCustomers: number;
   topCustomers: { name: string; spend: number; orders: number }[];
   topProducts: { name: string; count: number; revenue: number }[];
+  topCategories: { name: string; count: number; revenue: number }[];
+  topPayments: { name: string; count: number }[];
   dailyRevenue: { date: string; revenue: number }[];
+}
+
+export interface AllTimeInsights {
+  bestMonth: { period: string; revenue: number } | null;
+  worstMonth: { period: string; revenue: number } | null;
+}
+
+export function computeAllTimeInsights(rows: CustomerRow[]): AllTimeInsights {
+  const monthMap = new Map<string, number>();
+  
+  for (const r of rows) {
+    if (!r.tanggalOrder) continue;
+    // Extract YYYY-MM
+    const match = r.tanggalOrder.match(/^(\d{4}-\d{2})/);
+    if (!match) continue;
+    const period = match[1];
+    
+    // Ignore current month if we want to be strict, but let's just include all for now 
+    // to keep it simple, or maybe ignore current month for "worst" only.
+    // Actually, simple max and min is fine.
+    monthMap.set(period, (monthMap.get(period) ?? 0) + parseAmount(r.totalBayar));
+  }
+
+  if (monthMap.size === 0) {
+    return { bestMonth: null, worstMonth: null };
+  }
+
+  const sorted = [...monthMap.entries()].sort((a, b) => b[1] - a[1]);
+  
+  const best = sorted[0];
+  // To avoid pointing out the current incomplete month as the "worst", 
+  // we could filter out the current month for the worst calculation if there are multiple months.
+  const currentPeriod = new Date().toISOString().slice(0, 7);
+  let worstCand = sorted[sorted.length - 1];
+  
+  if (sorted.length > 1 && worstCand[0] === currentPeriod) {
+    worstCand = sorted[sorted.length - 2];
+  }
+
+  return {
+    bestMonth: { period: best[0], revenue: best[1] },
+    worstMonth: { period: worstCand[0], revenue: worstCand[1] }
+  };
 }
 
 export function computeMonthlyStats(
@@ -29,6 +73,7 @@ export function computeMonthlyStats(
 
   const totalRevenue = monthRows.reduce((s, r) => s + parseAmount(r.totalBayar), 0);
   const totalOrders = monthRows.length;
+  const aov = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
   // New vs repeat customers
   const customerOrdersInMonth = new Map<string, number>();
@@ -67,10 +112,12 @@ export function computeMonthlyStats(
     .sort((a, b) => b.spend - a.spend)
     .slice(0, 5);
 
-  // Top products
+  // Top products (specific items)
   const productMap = new Map<string, { count: number; revenue: number }>();
   for (const r of monthRows) {
-    const product = r.jenis || r.type || 'Lainnya';
+    // If it's multiple items, we shouldn't mix, but we rely on `r.jenis` or `r.type`.
+    // Actually, r.keterangan might contain the full name, but let's use type+jenis
+    const product = `${r.jenis || ''} ${r.type || ''}`.trim() || 'Lainnya';
     const existing = productMap.get(product) ?? { count: 0, revenue: 0 };
     productMap.set(product, {
       count: existing.count + (parseInt(r.qty || '1', 10) || 1),
@@ -82,6 +129,30 @@ export function computeMonthlyStats(
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5);
 
+  // Top Categories (Jenis only, e.g. Anting, Cincin)
+  const categoryMap = new Map<string, { count: number; revenue: number }>();
+  for (const r of monthRows) {
+    const category = r.jenis || 'Lainnya';
+    const existing = categoryMap.get(category) ?? { count: 0, revenue: 0 };
+    categoryMap.set(category, {
+      count: existing.count + (parseInt(r.qty || '1', 10) || 1),
+      revenue: existing.revenue + parseAmount(r.totalBayar),
+    });
+  }
+  const topCategories = [...categoryMap.entries()]
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  // Top Payments
+  const paymentMap = new Map<string, number>();
+  for (const r of monthRows) {
+    const method = r.paymentVia || 'Belum Lunas/Lainnya';
+    paymentMap.set(method, (paymentMap.get(method) ?? 0) + 1);
+  }
+  const topPayments = [...paymentMap.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+
   // Daily revenue
   const dailyMap = new Map<string, number>();
   for (const r of monthRows) {
@@ -91,7 +162,7 @@ export function computeMonthlyStats(
   }
   const dailyRevenue = [...dailyMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, revenue]) => ({ date, revenue }));
 
-  return { totalRevenue, totalOrders, newCustomers, repeatCustomers, topCustomers, topProducts, dailyRevenue };
+  return { totalRevenue, totalOrders, aov, newCustomers, repeatCustomers, topCustomers, topProducts, topCategories, topPayments, dailyRevenue };
 }
 
 export function printMonthlyReport(

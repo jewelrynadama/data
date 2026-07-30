@@ -1,6 +1,7 @@
 // src/pages/BirthdayPage.tsx
-import { useMemo, useState } from 'react';
-import { Gift, Copy, Check, Phone, Instagram, Search, ChevronDown } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Gift, Copy, Check, Phone, Instagram, Search, ChevronDown, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import type { Customer } from '../types';
 import { formatRupiah } from '../utils/csvLoader';
 import { calcLoyalty } from '../utils/loyaltyEngine';
@@ -23,6 +24,25 @@ export default function BirthdayPage({ customers, settings }: Props) {
   const [search, setSearch] = useState('');
   const [copied, setCopied] = useState<Record<string, boolean>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+
+  const storageKey = `pearlcrm_birthday_sent_${now.getFullYear()}_${currentMonth}`;
+  const [sentIds, setSentIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(storageKey) || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const markAsSent = (id: string) => {
+    setSentIds(prev => {
+      if (prev.includes(id)) return prev;
+      const next = [...prev, id];
+      sessionStorage.setItem(storageKey, JSON.stringify(next));
+      return next;
+    });
+  };
 
   const storeName = settings?.storeName || 'Pearl Store';
   const voucherCode = settings?.voucherCode || 'BDAY10';
@@ -78,18 +98,45 @@ export default function BirthdayPage({ customers, settings }: Props) {
   }
 
   const statusBadge = (status: string, daysUntil: number) => {
-    if (status === 'today') return <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', borderRadius: 8, padding: '2px 10px', fontSize: 11, fontWeight: 700, animation: 'pulse 1.5s ease-in-out infinite' }}>🎂 Hari Ini!</span>;
-    if (status === 'tomorrow') return <span style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', borderRadius: 8, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>🎉 Besok</span>;
-    if (status === 'upcoming') return <span style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981', borderRadius: 8, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>{daysUntil} hari lagi</span>;
+    if (status === 'today') return <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', borderRadius: 8, padding: '2px 10px', fontSize: 11, fontWeight: 700, animation: 'pulse 1.5s ease-in-out infinite' }}>🎂 HARI INI!</span>;
+    if (status === 'tomorrow') return <span style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', borderRadius: 8, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>🎉 Besok!</span>;
+    if (status === 'upcoming') return <span style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b', borderRadius: 8, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>📅 {daysUntil} hari lagi</span>;
     if (status === 'passed') return <span style={{ background: 'rgba(100,116,139,0.12)', color: '#94a3b8', borderRadius: 8, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>Lewat {Math.abs(daysUntil)}h</span>;
     return null;
   };
 
-  const todayCount = allBirthdays.filter((b) => b.status === 'today').length;
+  const getBulkMessage = (c: Customer) => {
+    const vc = `BDAY${now.getFullYear()}-${c.nama.slice(0,4).toUpperCase().replace(/\s/g,'')}`;
+    return `🎂 Selamat Ulang Tahun, ${c.nama}!\nSemoga panjang umur dan selalu sehat ya Kak! 🥳\n\nSebagai hadiah spesial hari ini, gunakan kode:\n🎁 *${vc}* untuk diskon eksklusif!\n\nSalam hangat,\n${storeName} 💎`;
+  };
+
+  const todaysBirthdays = allBirthdays.filter((b) => b.status === 'today');
+  const todayCount = todaysBirthdays.length;
+  const unsentTodayCount = todaysBirthdays.filter(b => !sentIds.includes(b.customer.id)).length;
   const upcomingCount = allBirthdays.filter((b) => b.status === 'upcoming' || b.status === 'tomorrow').length;
 
   return (
     <div className="page-body">
+      {/* Bulk Action Header */}
+      {todaysBirthdays.length > 0 && (
+        <div className="card" style={{ marginBottom: 20, background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          <div className="card-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Ulang Tahun Hari Ini</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Ada {todaysBirthdays.length} pelanggan berulang tahun hari ini.</div>
+            </div>
+            <button 
+              className="btn"
+              onClick={() => setShowBulkModal(true)}
+              style={{ background: '#ef4444', color: 'white', border: 'none', padding: '8px 16px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, cursor: 'pointer' }}
+            >
+              🎂 Kirim Semua Hari Ini
+              <span style={{ background: 'white', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontSize: 11, marginLeft: 4 }}>Belum dikirim: {unsentTodayCount}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Stats bar */}
       <div className="stats-grid" style={{ marginBottom: 20 }}>
         <div className="stat-card pink">
@@ -174,6 +221,7 @@ export default function BirthdayPage({ customers, settings }: Props) {
                       <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>{c.nama}</span>
                       <span style={{ fontSize: 11, color: loyalty.tierColor, fontWeight: 700 }}>{loyalty.tierEmoji} {loyalty.tier}</span>
                       {statusBadge(status, daysUntil)}
+                      {sentIds.includes(c.id) && <span style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', borderRadius: 8, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>✅ Terkirim</span>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
                       🎂 {day} {INDO_MONTHS[selectedMonth - 1]}
@@ -201,7 +249,7 @@ export default function BirthdayPage({ customers, settings }: Props) {
                         {copied[c.id] ? <><Check size={13} /> Tersalin!</> : <><Copy size={13} /> Salin Pesan</>}
                       </button>
                       {waLink && (
-                        <a href={waLink} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <a href={waLink} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => markAsSent(c.id)}>
                           <Phone size={13} /> Buka WA
                         </a>
                       )}
@@ -217,6 +265,77 @@ export default function BirthdayPage({ customers, settings }: Props) {
             );
           })}
         </div>
+      )}
+
+      {/* Bulk Send Modal */}
+      {showBulkModal && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: 'rgba(0,0,0,0.6)' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 500, maxHeight: '90vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-card)', boxShadow: 'var(--shadow-lg)' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Kirim Pesan Ulang Tahun</div>
+              <button onClick={() => setShowBulkModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={20} /></button>
+            </div>
+            
+            <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {todaysBirthdays.map((b) => {
+                const c = b.customer;
+                const initials = c.nama.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
+                const msg = getBulkMessage(c);
+                const isSent = sentIds.includes(c.id);
+                const wLink = c.wa ? `https://wa.me/${c.wa.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}` : null;
+
+                return (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent-purple)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>
+                      {initials}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.nama}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.wa || 'No WA'}</div>
+                    </div>
+                    {isSent ? (
+                       <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>✅ Terkirim</span>
+                    ) : wLink ? (
+                       <a 
+                         href={wLink} 
+                         target="_blank" 
+                         rel="noopener noreferrer" 
+                         className="btn btn-secondary" 
+                         style={{ padding: '4px 10px', fontSize: 12, textDecoration: 'none' }}
+                         onClick={() => markAsSent(c.id)}
+                       >
+                         Buka WA
+                       </a>
+                    ) : (
+                       <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Invalid</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+              <button 
+                className="btn btn-primary" 
+                style={{ width: '100%', padding: '12px', fontSize: 14, fontWeight: 600, display: 'flex', justifyContent: 'center', gap: 8, border: 'none', cursor: 'pointer', borderRadius: 8 }}
+                onClick={() => {
+                  const unsent = todaysBirthdays.filter(b => !sentIds.includes(b.customer.id) && b.customer.wa);
+                  unsent.forEach((b, i) => {
+                    setTimeout(() => {
+                      const msg = getBulkMessage(b.customer);
+                      const wLink = `https://wa.me/${b.customer.wa.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
+                      window.open(wLink, '_blank');
+                      markAsSent(b.customer.id);
+                    }, i * 150);
+                  });
+                }}
+              >
+                🚀 Buka Semua WA ({unsentTodayCount} orang)
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

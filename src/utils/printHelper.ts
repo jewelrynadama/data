@@ -1,39 +1,82 @@
 // src/utils/printHelper.ts
 import type { Customer, CustomerRow } from '../types';
-import { formatRupiah } from './csvLoader';
+import { formatRupiah, cleanPrice } from './csvLoader';
+
+function getPrintPageCSS(settings?: any) {
+  const size = settings?.printPaperSize || 'A4';
+  const orientation = settings?.printOrientation || 'portrait';
+  const unit = settings?.printMarginUnit || 'mm';
+  const t = settings?.printMarginTop ?? '15';
+  const r = settings?.printMarginRight ?? '15';
+  const b = settings?.printMarginBottom ?? '15';
+  const l = settings?.printMarginLeft ?? '15';
+  const cw = settings?.printCustomWidth || '210';
+  const ch = settings?.printCustomHeight || '297';
+
+  let sizeStr = size;
+  if (size === 'Custom') {
+    sizeStr = `${cw}mm ${ch}mm`;
+  } else if (size === 'Thermal80') {
+    sizeStr = '80mm auto';
+  } else if (size === 'Thermal58') {
+    sizeStr = '58mm auto';
+  }
+
+  let finalSize = `${sizeStr} ${orientation}`.trim();
+  if (size === 'Thermal80' || size === 'Thermal58') {
+    finalSize = sizeStr;
+  }
+
+  return `
+    @page {
+      size: ${finalSize};
+      margin: ${t}${unit} ${r}${unit} ${b}${unit} ${l}${unit};
+    }
+  `;
+}
 
 /**
  * Prints a single order invoice (Nota Penjualan)
  */
-export function printInvoice(customer: Customer, order: CustomerRow, settings?: any) {
+export function printInvoice(customer: Customer, orderOrOrders: CustomerRow | CustomerRow[], settings?: any) {
   const storeName = settings?.storeName || 'Pearl Store';
   const storePhone = settings?.storePhone || '081234567890';
   const storeInstagram = settings?.storeInstagram || 'pearlstore';
   const accentColor = settings?.invoiceAccentColor || '#0f172a';
   const footerNote = settings?.invoiceFooterNote || 'Terima kasih atas kunjungan & kepercayaan Anda berbelanja di toko kami!';
   
-  const win = window.open('', '_blank', 'width=600,height=800');
+  const win = window.open('', '_blank', 'width=850,height=1000');
   if (!win) {
     alert('Pop-up terblokir! Mohon izinkan pop-up untuk mencetak nota.');
     return;
   }
   
+  const orders = Array.isArray(orderOrOrders) ? orderOrOrders : [orderOrOrders];
+  if (orders.length === 0) return;
+  const order = orders[0];
+  
   const todayStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
   const orderDateStr = order.tanggalOrder || '—';
   
-  // Clean values
-  const qty = parseInt(order.qty || '1', 10) || 1;
-  const rawPrice = order.totalBayar ? parseInt(order.totalBayar.replace(/\D/g, ''), 10) || 0 : 0;
-  const unitPrice = qty > 0 ? Math.round(rawPrice / qty) : rawPrice;
-  const amountStr = order.amount ? formatRupiah(parseInt(order.amount.replace(/\D/g, ''), 10)) : '—';
-  const ongkirStr = order.ongkir ? formatRupiah(parseInt(order.ongkir.replace(/\D/g, ''), 10)) : '—';
+  let grandTotalAmount = 0;
+  let grandTotalOngkir = 0;
+  let grandTotalKeseluruhan = 0;
 
-  // Format row ID to professional invoice format (e.g. row-50 becomes INV-0050)
+  orders.forEach(o => {
+    grandTotalAmount += cleanPrice(o.amount) || cleanPrice(o.totalBayar);
+    grandTotalOngkir += cleanPrice(o.ongkir);
+    grandTotalKeseluruhan += cleanPrice(o.totalBayar);
+  });
+
   const rawId = order.id || '';
-  const numMatch = rawId.match(/\d+/);
+  const numMatch = rawId.match(/\\d+/);
   const displayInvoiceId = numMatch
     ? `INV-${numMatch[0].padStart(4, '0')}`
     : `INV-${rawId.toUpperCase()}`;
+  
+  const isNumericCourier = order.kurir ? /^\\d+$/.test(order.kurir.trim().replace(/[\\s\\.\\,\\-]/g, '')) : false;
+  const courierName = order.kurir && !isNumericCourier ? order.kurir : 'JNE/J&T';
+  const resiStr = order.resi || (isNumericCourier ? order.kurir : '');
   
   win.document.write(`
     <!DOCTYPE html>
@@ -43,61 +86,60 @@ export function printInvoice(customer: Customer, order: CustomerRow, settings?: 
         <title>Nota Penjualan - ${customer.nama} - ${orderDateStr}</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
         <style>
-          @page {
-            size: 105mm 148mm;
-            margin: 0;
-          }
+          ${getPrintPageCSS(settings)}
           * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', -apple-system, sans-serif !important; }
-          html, body { width: 105mm; height: 148mm; margin: 0; padding: 0; background: white; overflow: hidden; }
-          body { color: #0f172a; line-height: 1.4; display: flex; justify-content: center; align-items: center; }
-          .invoice-card { width: 100mm; height: 143mm; background: #fff; padding: 16px; position: relative; }
+          html, body { width: 100%; min-height: 100%; margin: 0; padding: 0; background: #f1f5f9; }
+          body { color: #0f172a; line-height: 1.5; display: flex; justify-content: center; padding: 30px 15px; }
+          .invoice-card { width: 100%; max-width: 210mm; min-height: 297mm; background: #fff; padding: 20mm; position: relative; display: flex; flex-direction: column; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); border-radius: 8px; }
           
           /* Header */
-          .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; border-bottom: 2px solid ${accentColor}; margin-bottom: 12px; }
-          .store-info { display: flex; flex-direction: column; gap: 2px; }
-          .store-name { font-size: 16px; font-weight: 900; text-transform: uppercase; color: ${accentColor}; letter-spacing: 0.5px; }
-          .store-contact { font-size: 9px; color: #475569; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 16px; border-bottom: 3px solid ${accentColor}; margin-bottom: 24px; }
+          .store-info { display: flex; flex-direction: column; gap: 4px; }
+          .store-name { font-size: 26px; font-weight: 900; text-transform: uppercase; color: ${accentColor}; letter-spacing: 0.5px; }
+          .store-contact { font-size: 12px; color: #475569; }
           .invoice-title-wrap { text-align: right; }
-          .invoice-title { font-size: 14px; font-weight: 850; text-transform: uppercase; color: ${accentColor}; letter-spacing: 0.5px; }
-          .invoice-number { font-size: 10px; color: #475569; font-family: monospace; font-weight: 700; margin-top: 2px; }
+          .invoice-title { font-size: 20px; font-weight: 850; text-transform: uppercase; color: ${accentColor}; letter-spacing: 0.5px; }
+          .invoice-number { font-size: 13px; color: #475569; font-family: monospace; font-weight: 700; margin-top: 4px; }
           
           /* Details Grid */
-          .details-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+          .details-grid { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
           .details-row { display: flex; justify-content: space-between; }
-          .details-box { display: flex; flex-direction: column; gap: 2px; width: 48%; }
-          .details-label { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; }
-          .details-value { font-size: 10px; font-weight: 600; color: #1e293b; }
-          .details-value.customer-name { font-size: 12px; font-weight: 800; color: #0f172a; }
-          .details-value.address { font-size: 9px; font-weight: 400; line-height: 1.3; color: #334155; }
+          .details-box { display: flex; flex-direction: column; gap: 4px; width: 48%; }
+          .details-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; }
+          .details-value { font-size: 13px; font-weight: 600; color: #1e293b; }
+          .details-value.customer-name { font-size: 16px; font-weight: 800; color: #0f172a; }
+          .details-value.address { font-size: 12px; font-weight: 400; line-height: 1.4; color: #334155; }
           
           /* Table */
-          .table-wrap { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-          .table-wrap th { background: #f8fafc; color: #475569; font-size: 8px; font-weight: 700; text-transform: uppercase; text-align: left; padding: 6px; border-bottom: 2px solid ${accentColor}; }
-          .table-wrap td { padding: 6px; font-size: 9.5px; border-bottom: 1px solid #e2e8f0; color: #334155; vertical-align: top; }
+          .table-wrap { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+          .table-wrap th { background: #f8fafc; color: #475569; font-size: 11px; font-weight: 700; text-transform: uppercase; text-align: left; padding: 10px 12px; border-bottom: 2px solid ${accentColor}; }
+          .table-wrap td { padding: 12px; font-size: 13px; border-bottom: 1px solid #e2e8f0; color: #334155; vertical-align: top; }
           .table-wrap th.num, .table-wrap td.num { text-align: right; }
-          .table-wrap td.product-desc { font-weight: 700; color: #0f172a; font-size: 10px; }
-          .table-wrap td.product-meta { font-size: 8px; color: #475569; margin-top: 2px; line-height: 1.2; }
+          .table-wrap td.product-desc { font-weight: 700; color: #0f172a; font-size: 14px; }
+          .table-wrap td.product-meta { font-size: 11px; color: #475569; margin-top: 4px; line-height: 1.4; }
           
           /* Totals Section */
-          .totals-container { display: flex; justify-content: flex-end; margin-bottom: 12px; }
-          .totals-table { width: 180px; border-collapse: collapse; }
-          .totals-table td { padding: 4px 6px; font-size: 9px; color: #475569; }
+          .totals-container { display: flex; justify-content: flex-end; margin-bottom: 24px; }
+          .totals-table { width: 280px; border-collapse: collapse; }
+          .totals-table td { padding: 6px 8px; font-size: 12px; color: #475569; }
           .totals-table td.label { text-align: left; }
           .totals-table td.val { text-align: right; font-weight: 600; color: #0f172a; }
-          .totals-table tr.grand-total td { font-size: 11px; font-weight: 800; color: ${accentColor}; border-top: 2px solid ${accentColor}; padding-top: 6px; }
+          .totals-table tr.grand-total td { font-size: 15px; font-weight: 800; color: ${accentColor}; border-top: 2px solid ${accentColor}; padding-top: 10px; }
           
           /* Signature and Terms block */
-          .terms-signature-grid { display: flex; justify-content: space-between; margin-top: auto; border-top: 1px solid #e2e8f0; padding-top: 10px; }
-          .terms-box { font-size: 7.5px; color: #64748b; line-height: 1.4; width: 60%; }
-          .signature-box { text-align: center; width: 35%; font-size: 9px; color: #0f172a; display: flex; flex-direction: column; align-items: center; }
-          .signature-title { color: #64748b; margin-bottom: 30px; font-size: 8px; }
-          .signature-name { font-weight: 700; border-top: 1px solid #0f172a; width: 100px; padding-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+          .terms-signature-grid { display: flex; justify-content: space-between; margin-top: auto; border-top: 1px solid #e2e8f0; padding-top: 16px; margin-bottom: 24px; }
+          .terms-box { font-size: 10px; color: #64748b; line-height: 1.5; width: 60%; }
+          .signature-box { text-align: center; width: 35%; font-size: 12px; color: #0f172a; display: flex; flex-direction: column; align-items: center; }
+          .signature-title { color: #64748b; margin-bottom: 40px; font-size: 11px; }
+          .signature-name { font-weight: 700; border-top: 1px solid #0f172a; width: 140px; padding-top: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
 
           /* Footer */
-          .footer { position: absolute; bottom: 16px; left: 16px; right: 16px; text-align: center; border-top: 1px dashed #cbd5e1; padding-top: 8px; font-size: 8px; color: #94a3b8; font-weight: 500; }
+          .footer { text-align: center; border-top: 1px dashed #cbd5e1; padding-top: 12px; font-size: 10px; color: #94a3b8; font-weight: 500; margin-top: 20px; }
           
           @media print {
-            body { padding: 0; overflow: hidden; }
+            html, body { background: white; }
+            body { padding: 0; }
+            .invoice-card { max-width: none; min-height: none; padding: 0; box-shadow: none; border-radius: 0; }
             th { background: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           }
         </style>
@@ -110,9 +152,11 @@ export function printInvoice(customer: Customer, order: CustomerRow, settings?: 
               <div class="store-name">${storeName}</div>
               <div class="store-contact">WhatsApp: ${storePhone} ${storeInstagram ? ` · Instagram: @${storeInstagram}` : ''}</div>
             </div>
-            <div class="invoice-title-wrap">
+            <div class="invoice-title-wrap" style="display: flex; flex-direction: column; gap: 2px; align-items: flex-end;">
               <div class="invoice-title">Nota Penjualan</div>
-              <div class="invoice-number">No. Invoice: ${displayInvoiceId}</div>
+              <div class="invoice-number" style="font-size: 13px; color: #475569; font-family: monospace; font-weight: 700; margin-top: 4px; text-align: right; line-height: 1.4;">
+                ${order.no ? `<div>No. Pesanan: ${order.no}</div>` : `<div>No. Invoice: ${displayInvoiceId}</div>`}
+              </div>
             </div>
           </div>
           
@@ -131,13 +175,13 @@ export function printInvoice(customer: Customer, order: CustomerRow, settings?: 
             </div>
             ${customer.alamat ? `<div class="details-value address">${customer.alamat}</div>` : ''}
             
-            <div class="details-row" style="margin-top: 4px; padding-top: 4px; border-top: 1px dashed #e2e8f0;">
+            <div class="details-row" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0;">
               <div class="details-box">
                 <div class="details-label">Kurir</div>
-                <div class="details-value">${(order.kurir && !/^\\d+$/.test(order.kurir.trim().replace(/[\\s\\.\\,\\-]/g, ''))) ? order.kurir : 'JNE'} ${order.resi ? `<br/>Resi: ${order.resi}` : ''}</div>
+                <div class="details-value">${courierName} ${resiStr ? `<br/>Resi: ${resiStr}` : ''}</div>
               </div>
               <div class="details-box" style="text-align: right;">
-                <div class="details-label">Metode Bayar</div>
+                <div class="details-label">Pesanan Via</div>
                 <div class="details-value">${order.paymentVia || '—'}</div>
               </div>
             </div>
@@ -148,28 +192,35 @@ export function printInvoice(customer: Customer, order: CustomerRow, settings?: 
             <thead>
               <tr>
                 <th>Deskripsi Produk</th>
-                <th class="num" style="width: 80px;">Qty</th>
-                <th class="num" style="width: 130px;">Harga Satuan</th>
-                <th class="num" style="width: 130px;">Total</th>
+                <th class="num" style="width: 60px;">Qty</th>
+                <th class="num" style="width: 140px;">Harga Satuan</th>
+                <th class="num" style="width: 140px;">Total</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>
-                  <div class="product-desc">${order.jenis || 'Perhiasan Mutiara'}</div>
-                  <div class="product-meta">
-                    ${order.type ? `Mutiara: ${order.type}` : ''} 
-                    ${order.size ? ` · Ukuran: ${order.size}mm` : ''} 
-                    ${order.color ? ` · Warna: ${order.color}` : ''} 
-                    ${order.shape ? ` · Bentuk: ${order.shape}` : ''}
-                    ${order.grade ? ` · Grade: ${order.grade}` : ''}
-                  </div>
-                  ${order.keterangan ? `<div style="font-size: 8px; margin-top: 3px; color: #475569;">Ket: ${order.keterangan}</div>` : ''}
-                </td>
-                <td class="num">${qty}</td>
-                <td class="num">${formatRupiah(unitPrice)}</td>
-                <td class="num" style="font-weight: 700; color: #0f172a;">${formatRupiah(rawPrice)}</td>
-              </tr>
+              ${orders.map(o => {
+                const qty = parseInt(o.qty || '1', 10) || 1;
+                const rawPrice = cleanPrice(o.totalBayar);
+                const unitPrice = qty > 0 ? Math.round(rawPrice / qty) : rawPrice;
+                return `
+                  <tr>
+                    <td>
+                      <div class="product-desc">${o.jenis || 'Perhiasan Mutiara'}</div>
+                      <div class="product-meta">
+                        ${o.type ? `Mutiara: ${o.type}` : ''} 
+                        ${o.size ? ` · Ukuran: ${o.size}mm` : ''} 
+                        ${o.color ? ` · Warna: ${o.color}` : ''} 
+                        ${o.shape ? ` · Bentuk: ${o.shape}` : ''}
+                        ${o.grade ? ` · Grade: ${o.grade}` : ''}
+                      </div>
+                      ${o.keterangan ? `<div style="font-size: 10px; margin-top: 6px; color: #475569; font-weight: 500;">Ket: ${o.keterangan}</div>` : ''}
+                    </td>
+                    <td class="num">${qty}</td>
+                    <td class="num">${formatRupiah(unitPrice)}</td>
+                    <td class="num" style="font-weight: 700; color: #0f172a;">${formatRupiah(rawPrice)}</td>
+                  </tr>
+                `;
+              }).join('')}
             </tbody>
           </table>
           
@@ -178,17 +229,17 @@ export function printInvoice(customer: Customer, order: CustomerRow, settings?: 
             <table class="totals-table">
               <tr>
                 <td class="label">Harga Barang</td>
-                <td class="val">${amountStr !== '—' ? amountStr : formatRupiah(rawPrice)}</td>
+                <td class="val">${formatRupiah(grandTotalAmount)}</td>
               </tr>
-              ${order.ongkir ? `
+              ${grandTotalOngkir > 0 ? `
               <tr>
                 <td class="label">Ongkos Kirim</td>
-                <td class="val">${ongkirStr}</td>
+                <td class="val">${formatRupiah(grandTotalOngkir)}</td>
               </tr>
               ` : ''}
               <tr class="grand-total">
                 <td class="label">Total Pembayaran</td>
-                <td class="val">${formatRupiah(rawPrice)}</td>
+                <td class="val">${formatRupiah(grandTotalKeseluruhan)}</td>
               </tr>
             </table>
           </div>
@@ -209,7 +260,7 @@ export function printInvoice(customer: Customer, order: CustomerRow, settings?: 
           <!-- Footer -->
           <div class="footer">
             <div>${footerNote}</div>
-            <div style="font-size: 7px; color: #cbd5e1; margin-top: 4px;">Dicetak otomatis pada ${todayStr}</div>
+            <div style="font-size: 9px; color: #cbd5e1; margin-top: 4px;">Dicetak otomatis pada ${todayStr}</div>
           </div>
         </div>
       </body>
@@ -245,6 +296,7 @@ export function printCustomerStatement(customer: Customer, settings?: any) {
         <title>Riwayat Pembelian - ${customer.nama}</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
         <style>
+          ${getPrintPageCSS(settings)}
           * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', -apple-system, sans-serif !important; }
           body { color: #0f172a; padding: 40px; line-height: 1.5; background: #fff; }
           .report-wrap { max-width: 800px; margin: 0 auto; }
@@ -359,7 +411,7 @@ export function printCustomerStatement(customer: Customer, settings?: any) {
                   badgeClass = 'badge-returned';
                   statusText = 'Retur';
                 }
-                const formattedPrice = o.totalBayar ? formatRupiah(parseInt(o.totalBayar.replace(/\D/g,''), 10)) : '—';
+                const formattedPrice = o.totalBayar ? formatRupiah(cleanPrice(o.totalBayar)) : '—';
                 
                 const rawOrderId = o.id || '';
                 const oNumMatch = rawOrderId.match(/\d+/);

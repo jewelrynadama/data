@@ -10,7 +10,8 @@ import { Bar, Doughnut } from 'react-chartjs-2';
 import type { Customer, CustomerRow } from '../types';
 import { formatRupiah } from '../utils/csvLoader';
 import { getProductPerformance } from '../utils/marketingEngine';
-import { TrendingUp, TrendingDown, Package } from 'lucide-react';
+import { TrendingUp, TrendingDown, Package, Users } from 'lucide-react';
+import { buildCohortRetention } from '../utils/recommendEngine';
 
 ChartJS.register(
   CategoryScale, LinearScale, BarElement, ArcElement,
@@ -536,6 +537,92 @@ export default function AnalyticsPage({ customers, rows, theme = 'dark' }: Props
             </div>
           </div>
         </div>
+
+        {/* ── Cohort Retention Heatmap ────────────── */}
+        <div className="card" style={{ padding: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <div style={{ background: 'rgba(24,119,242,0.12)', color: '#1877F2', padding: 6, borderRadius: 8 }}><Users size={16} /></div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Cohort Retention</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Persentase pelanggan yang kembali belanja tiap bulan</div>
+            </div>
+          </div>
+          {(() => {
+            const cohorts = buildCohortRetention(customers, 8);
+            if (cohorts.length === 0) return <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 20 }}>Belum cukup data cohort</div>;
+            return (
+              <>
+              <div className="table-wrapper" style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Cohort</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>Cust</th>
+                      {Array.from({ length: 8 }, (_, i) => (
+                        <th key={i} style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10 }}>M+{i}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cohorts.map((row) => (
+                      <tr key={row.cohortMonth}>
+                        <td style={{ padding: '6px 12px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{row.cohortLabel}</td>
+                        <td style={{ padding: '6px 12px', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}>{row.totalCustomers}</td>
+                        {row.retention.slice(0, 8).map((pct, i) => {
+                          if (pct === -1) return <td key={i} style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--text-muted)' }}>—</td>;
+                          const intensity = pct / 100;
+                          const bg = `rgba(24, 119, 242, ${intensity * 0.5})`;
+                          const color = intensity > 0.5 ? '#ffffff' : 'var(--text-primary)';
+                          return (
+                            <td key={i} style={{
+                              padding: '6px 8px', textAlign: 'center', fontWeight: 700,
+                              background: bg, color, borderRadius: 4, fontSize: 11,
+                            }}>
+                              {pct}%
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mobile-card-list">
+                {cohorts.map((row) => (
+                  <div key={row.cohortMonth} className="inv-card">
+                    <div className="inv-card-header">
+                      <div className="inv-card-title">{row.cohortLabel}</div>
+                      <div className="inv-badge inv-badge-green">{row.totalCustomers} Cust</div>
+                    </div>
+                    <div className="inv-card-body">
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                        {row.retention.slice(0, 8).map((pct, i) => {
+                          if (pct === -1) return (
+                            <div key={i} style={{ textAlign: 'center', padding: '6px', background: 'var(--bg-tertiary)', borderRadius: '6px', color: 'var(--text-muted)' }}>
+                              <div style={{ fontSize: '10px' }}>M+{i}</div>
+                              <div style={{ fontSize: '12px', fontWeight: 600 }}>—</div>
+                            </div>
+                          );
+                          const intensity = pct / 100;
+                          const bg = `rgba(24, 119, 242, ${intensity * 0.5})`;
+                          const color = intensity > 0.5 ? '#ffffff' : 'var(--text-primary)';
+                          return (
+                            <div key={i} style={{ textAlign: 'center', padding: '6px', background: bg, borderRadius: '6px', color }}>
+                              <div style={{ fontSize: '10px', opacity: 0.8 }}>M+{i}</div>
+                              <div style={{ fontSize: '12px', fontWeight: 700 }}>{pct}%</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              </>
+            );
+          })()}
+        </div>
+
       </div>
     </div>
   );

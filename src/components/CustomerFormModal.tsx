@@ -58,25 +58,12 @@ export default function CustomerFormModal({ initial, onSave, onClose }: Props) {
   const isEdit = !!initial;
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div style={{
-        background: 'var(--bg-secondary)',
-        border: '1px solid var(--border)',
-        borderRadius: 16,
-        width: 480,
-        maxWidth: '95vw',
-        maxHeight: '90vh',
-        overflowY: 'auto',
-        boxShadow: 'var(--shadow-lg)',
-        animation: 'modalIn 0.22s cubic-bezier(0.4,0,0.2,1)',
-        margin: 'auto',
-        alignSelf: 'center',
-      }}>
+    <div className="modal-overlay center" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-content" style={{ width: 480 }}>
         {/* Header */}
-        <div style={{
+        <div className="modal-header" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '18px 22px', borderBottom: '1px solid var(--border)',
-          position: 'sticky', top: 0, background: 'var(--bg-secondary)', zIndex: 1, borderRadius: '16px 16px 0 0',
+          padding: '18px 22px', borderBottom: '1px solid var(--border)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
@@ -94,7 +81,7 @@ export default function CustomerFormModal({ initial, onSave, onClose }: Props) {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <form onSubmit={handleSubmit} className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Field label="Nama *" error={errors.nama}>
             <input className="form-input" value={form.nama} onChange={(e) => set('nama', e.target.value)} placeholder="Nama lengkap / Instagram" />
           </Field>
@@ -134,7 +121,7 @@ export default function CustomerFormModal({ initial, onSave, onClose }: Props) {
             <input className="form-input" value={form.tanggalUlangTahun} onChange={(e) => set('tanggalUlangTahun', e.target.value)} placeholder="DD/MM/YYYY" />
           </Field>
 
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
+          <div className="modal-footer" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', padding: '16px 22px', borderTop: '1px solid var(--border)' }}>
             <button type="button" className="btn btn-secondary" onClick={onClose}>Batal</button>
             <button type="submit" className="btn btn-primary">
               <Save size={14} /> {isEdit ? 'Simpan Perubahan' : 'Tambah Customer'}
@@ -142,31 +129,6 @@ export default function CustomerFormModal({ initial, onSave, onClose }: Props) {
           </div>
         </form>
       </div>
-
-      <style>{`
-        @keyframes modalIn { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
-        .form-input {
-          width: 100%;
-          background: var(--bg-input);
-          border: 1px solid var(--border);
-          border-radius: 8px;
-          color: var(--text-primary);
-          font-family: Inter, sans-serif;
-          font-size: 13px;
-          padding: 8px 12px;
-          outline: none;
-          transition: border-color 0.15s, box-shadow 0.15s;
-          height: 38px;
-          box-sizing: border-box;
-        }
-        textarea.form-input { height: auto; }
-        .form-input:focus {
-          border-color: rgba(124,58,237,0.6);
-          box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
-        }
-        .form-input::placeholder { color: var(--text-muted); }
-        .form-input option { background: #1a1a27; }
-      `}</style>
     </div>
   );
 }

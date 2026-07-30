@@ -88,7 +88,7 @@ Instruksi Wajib:
 3. Jika pencarian tidak menemukan artikel/jejak digital publik yang BENAR-BENAR COCOK 100% dengan profil di atas, Anda WAJIB menjawab persis dengan kalimat: "TIDAK DITEMUKAN".
 4. Jika benar-benar menemukan kecocokan valid, rangkum aktivitas terbarunya dalam 1 kalimat singkat.`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

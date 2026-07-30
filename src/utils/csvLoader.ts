@@ -2,8 +2,12 @@
 import Papa from 'papaparse';
 import type { CustomerRow, Customer, CatalogItem } from '../types';
 
-const CSV_URL =
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vT2elLCDbnJsEuXpde2jZ-4Mj_1AghwCk6hJjxfD7ZQduWsfZjH02cJjr2afGrEvNo3T3ZUk1D-cUkH/pub?gid=0&single=true&output=csv';
+// BUG-S3 fix: CSV URL moved to env var so it's not exposed in compiled source code
+const CSV_BASE_URL = import.meta.env.VITE_SHEETS_CSV_URL as string;
+
+// BUG-P1: Cache key & TTL for stale-while-revalidate caching
+const SHEETS_CACHE_KEY = 'pearlcrm_sheets_cache_v2';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 function clean(v: string | undefined) {
   if (!v) return '';
@@ -20,18 +24,46 @@ function normalizeDate(v: string): string {
   // If DD/MM/YYYY or D/M/YYYY
   const parts = str.split(/[/\-]/);
   if (parts.length === 3) {
-    let [d, m, y] = parts;
-    if (y.length === 4) {
-      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    let [p1, p2, p3] = parts.map(p => p.trim());
+    
+    // Check if format is YYYY/MM/DD or YYYY-MM-DD (p1 is 4-digit year)
+    if (p1.length === 4) {
+      const year = p1;
+      const month = p2.padStart(2, '0');
+      const day = p3.padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    
+    // Format is DD/MM/YY or DD/MM/YYYY or similar (p3 is year)
+    let year = p3;
+    if (year.length === 2) {
+      year = '20' + year;
+    }
+    if (year.length === 4) {
+      const month = p2.padStart(2, '0');
+      const day = p1.padStart(2, '0');
+      return `${year}-${month}-${day}`;
     }
   }
   return str;
 }
 
+export function cleanPrice(val?: string | null): number {
+  if (!val) return 0;
+  let s = val.trim().replace(/Rp/gi, '').trim();
+  const lastDot = s.lastIndexOf('.');
+  const lastComma = s.lastIndexOf(',');
+  if (lastComma > lastDot && s.length - lastComma - 1 <= 2) {
+    s = s.substring(0, lastComma);
+  } else if (lastDot > lastComma && s.length - lastDot - 1 <= 2) {
+    s = s.substring(0, lastDot);
+  }
+  const cleanStr = s.replace(/\D/g, '');
+  return cleanStr ? parseInt(cleanStr, 10) : 0;
+}
+
 function parseAmount(v: string): number {
-  if (!v) return 0;
-  const s = v.replace(/[^0-9]/g, '');
-  return s ? parseInt(s, 10) : 0;
+  return cleanPrice(v);
 }
 
 export function extractCity(address: string): string {
@@ -57,7 +89,10 @@ export function extractCity(address: string): string {
     'tidore', 'kupang', 'bima', 'sumbawa', 'ende', 'maumere', 'waingapu',
     'jayapura', 'sorong', 'merauke', 'mimika', 'manokwari', 'pontianak',
     'singkawang', 'banjarmasin', 'banjarbaru', 'martapura', 'palangkaraya',
-    'bontang', 'tarakan', 'singaraja', 'tabanan', 'ubud', 'gianyar'
+    'bontang', 'tarakan', 'singaraja', 'tabanan', 'ubud', 'gianyar',
+    'tulungagung', 'jombang', 'bojonegoro', 'tuban', 'lamongan', 'trenggalek', 
+    'ponorogo', 'magetan', 'ngawi', 'pacitan', 'lumajang', 'situbondo', 'bondowoso',
+    'bangkalan', 'sampang', 'pamekasan', 'sumenep'
   ];
 
   for (const city of cities) {
@@ -149,6 +184,7 @@ function normalizePayment(v: string): string {
     t.includes('transf') ||
     t.includes('ttanfer') ||
     t.includes('trnsfer') ||
+    t.includes('tf langsung') ||
     t === 'tf' || t === 'tr'
   ) return 'Transfer';
   // Cash / Tukar / COD
@@ -160,14 +196,53 @@ function normalizePayment(v: string): string {
   return v.trim().charAt(0).toUpperCase() + v.trim().slice(1).toLowerCase();
 }
 
-export async function loadCustomerData(): Promise<{ rows: CustomerRow[]; customers: Customer[] }> {
+export async function loadCustomerData(isRefresh = false): Promise<{ rows: CustomerRow[]; customers: Customer[] }> {
+  // BUG-P1: Stale-while-revalidate cache layer
+  // On normal load: return cached data instantly if fresh (<5 min), then refresh in background
+  // On forced refresh (Sync Data button): always bypass cache and fetch fresh
+  if (!isRefresh) {
+    try {
+      const cached = localStorage.getItem(SHEETS_CACHE_KEY);
+      if (cached) {
+        const { data, ts } = JSON.parse(cached) as { data: { rows: CustomerRow[]; customers: Customer[] }; ts: number };
+        const age = Date.now() - ts;
+        if (age < CACHE_TTL_MS) {
+          return data; // fresh cache — return immediately
+        }
+        // Stale cache: return it immediately but also trigger background refresh
+        const staleData = data;
+        fetchAndCache().catch(console.error); // background refresh, don't await
+        return staleData;
+      }
+    } catch {
+      // Cache read failed — proceed to normal fetch
+    }
+  }
+
+  return fetchAndCache();
+}
+
+async function fetchAndCache(): Promise<{ rows: CustomerRow[]; customers: Customer[] }> {
+  if (!CSV_BASE_URL) {
+    throw new Error('VITE_SHEETS_CSV_URL belum dikonfigurasi di file .env');
+  }
+  // BUG-05 fix: timestamp generated at call time so each Sync Data refresh bypasses cache
+  const CSV_URL = `${CSV_BASE_URL}&t=${Date.now()}`;
+  const response = await fetch(CSV_URL);
+  if (!response.ok) throw new Error(`Gagal mengambil data dari Google Sheets (HTTP ${response.status})`);
+  const csvText = await response.text();
+  if (csvText.trim().toLowerCase().startsWith('<!doctype html') || csvText.trim().toLowerCase().startsWith('<html')) {
+    throw new Error('Google Sheets memblokir akses dan mereturn halaman HTML (mungkin perlu login ulang atau akses publik terputus).');
+  }
+
+
   return new Promise((resolve, reject) => {
-    Papa.parse(CSV_URL, {
-      download: true,
+    Papa.parse(csvText, {
       skipEmptyLines: 'greedy',
       complete: (results) => {
         try {
           const raw = results.data as string[][];
+
           // Find header row (row with "No", "Nama Instagram" etc.)
           let headerIdx = -1;
           for (let i = 0; i < Math.min(raw.length, 10); i++) {
@@ -192,22 +267,49 @@ export async function loadCustomerData(): Promise<{ rows: CustomerRow[]; custome
 
             // Columns (0-based): 0=No,1=NamaIG,2=Instagram,3=TgOrder,4=TgUltah,
             // 5=NamaPengiriman,6=Alamat,7=WA,8=Kode,9=Jenis,...
-            const namaInstagram = clean(r[1]) || lastNama;
-            const instagram     = clean(r[2]) || (lastNama === namaInstagram ? lastIg : '');
-            const wa            = formatWhatsApp(clean(r[7]) || lastWa);
-            const alamat        = formatAddress(clean(r[6])) || lastAlamat;
-            const birthday      = clean(r[4]) || lastBirthday;
-            const jenisFull     = normalizeType(clean(r[9]) || '');
+            let namaInstagram = clean(r[1]);
+            let instagram = clean(r[2]);
+            let wa = formatWhatsApp(clean(r[7]));
+            let alamat = formatAddress(clean(r[6]));
+            let birthday = clean(r[4]);
+            let namaPengiriman = clean(r[5]);
+
+            let customerName = namaInstagram || namaPengiriman;
+
+            if (customerName) {
+              // New customer block, override all lasts (clearing them if empty)
+              lastNama = customerName;
+              lastIg = instagram;
+              lastWa = wa;
+              lastAlamat = alamat;
+              lastBirthday = birthday;
+            } else {
+              // Continuation row, inherit from lasts
+              customerName = lastNama;
+              instagram = instagram || lastIg;
+              wa = wa || lastWa;
+              alamat = alamat || lastAlamat;
+              birthday = birthday || lastBirthday;
+
+              // In case a continuation row specifies a new value, update the lasts
+              if (clean(r[2])) lastIg = instagram;
+              if (clean(r[7])) lastWa = wa;
+              if (clean(r[6])) lastAlamat = alamat;
+              if (clean(r[4])) lastBirthday = birthday;
+            }
+
+            const jenisFull = normalizeType(clean(r[9]) || '');
 
             if (clean(r[3]) === '' && clean(r[8]) === '' && jenisFull === '') continue;
 
             const row: CustomerRow = {
               id: `row-${i}`,
-              namaInstagram,
+              no: clean(r[0]),
+              namaInstagram: customerName,
               instagram,
               tanggalOrder: normalizeDate(clean(r[3])),
-              tanggalUlangTahun: clean(r[4]) || birthday,
-              namaPengiriman: clean(r[5]),
+              tanggalUlangTahun: birthday,
+              namaPengiriman: namaPengiriman || customerName,
               alamat,
               wa,
               kode: clean(r[8]),
@@ -237,23 +339,49 @@ export async function loadCustomerData(): Promise<{ rows: CustomerRow[]; custome
               raw: r,
             };
 
-            if (namaInstagram) lastNama = namaInstagram;
-            if (instagram) lastIg = instagram;
-            if (wa) lastWa = wa;
-            if (alamat) lastAlamat = alamat;
-            if (birthday) lastBirthday = birthday;
-
             rows.push(row);
           }
 
-          // Group by customer name
+          // Group by customer (WA number primary, Name fallback)
+          if (rows.length === 0) {
+            reject(new Error(`DEBUG CSV (Length ${csvText.length}): ` + csvText.substring(0, 200)));
+            return;
+          }
+
           const customerMap = new Map<string, Customer>();
+          const nameToKeyMap = new Map<string, string>();
+          let nextCustId = 1;
+
           for (const row of rows) {
-            const key = row.namaInstagram || row.namaPengiriman || 'Unknown';
+            const name = row.namaInstagram || row.namaPengiriman || 'Unknown';
+            const wa = row.wa;
+
+            let key = wa ? `wa-${wa}` : `name-${name.toLowerCase()}`;
+
+            // 1. If row has WA, check if we previously created a customer with this exact name but NO WA.
+            if (wa && name !== 'Unknown') {
+              const existingNameKey = `name-${name.toLowerCase()}`;
+              if (customerMap.has(existingNameKey)) {
+                // Upgrade the old WA-less customer to the new WA-based key
+                const oldCust = customerMap.get(existingNameKey)!;
+                oldCust.wa = wa;
+                customerMap.set(key, oldCust);
+                customerMap.delete(existingNameKey);
+              }
+            }
+
+            // 2. If row has NO WA, but we previously saw this name and mapped it to a WA key, use that key.
+            if (!wa && name !== 'Unknown') {
+              const knownKey = nameToKeyMap.get(name.toLowerCase());
+              if (knownKey && customerMap.has(knownKey)) {
+                key = knownKey;
+              }
+            }
+
             if (!customerMap.has(key)) {
               customerMap.set(key, {
-                id: `customer-${customerMap.size}`,
-                nama: key,
+                id: `customer-${nextCustId++}`,
+                nama: name,
                 instagram: row.instagram,
                 wa: row.wa,
                 alamat: row.alamat,
@@ -265,7 +393,14 @@ export async function loadCustomerData(): Promise<{ rows: CustomerRow[]; custome
                 city: extractCity(row.alamat),
               });
             }
+
             const cust = customerMap.get(key)!;
+
+            // Map the name to the active key so future WA-less rows can find it
+            if (name !== 'Unknown') {
+              nameToKeyMap.set(name.toLowerCase(), key);
+            }
+
             if (row.jenis) {
               cust.orders.push(row);
               cust.orderCount++;
@@ -283,7 +418,12 @@ export async function loadCustomerData(): Promise<{ rows: CustomerRow[]; custome
             (c) => c.nama !== 'Unknown' || c.orderCount > 0
           );
 
-          resolve({ rows, customers });
+          const result = { rows, customers };
+          // Save to cache for stale-while-revalidate on next load
+          try {
+            localStorage.setItem(SHEETS_CACHE_KEY, JSON.stringify({ data: result, ts: Date.now() }));
+          } catch { /* localStorage might be full — fail silently */ }
+          resolve(result);
         } catch (err) {
           reject(err);
         }
@@ -327,31 +467,75 @@ export function formatWhatsApp(phone: string): string {
   let cleaned = phone.replace(/\D/g, '');
   if (!cleaned) return phone;
   
-  if (cleaned.startsWith('62')) {
-    cleaned = cleaned.slice(2);
-  } else if (cleaned.startsWith('0')) {
-    cleaned = cleaned.slice(1);
+  if (cleaned.startsWith('0')) {
+    return '62' + cleaned.slice(1);
   }
-  
-  const len = cleaned.length;
-  if (len >= 9 && len <= 13) {
-    const part1 = cleaned.slice(0, 3);
-    const part2 = cleaned.slice(3, 7);
-    const part3 = cleaned.slice(7);
-    return `+62 ${part1}-${part2}-${part3}`;
+  if (!cleaned.startsWith('62') && cleaned.length > 7) {
+    return '62' + cleaned;
   }
-  return phone;
+  return cleaned;
 }
 
 export function parseDateToSortValue(dateStr: string): number {
   if (!dateStr || dateStr === '—' || dateStr === '-') return 0;
+  // Try YYYY-MM-DD format first
+  if (dateStr.includes('-')) {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      const day = parseInt(parts[2], 10);
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        return year * 10000 + month * 100 + day;
+      }
+    }
+  }
+  
+  // Try DD/MM/YYYY format
   const parts = dateStr.split('/');
-  if (parts.length < 3) return 0;
-  const day = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10);
-  const year = parseInt(parts[2], 10);
-  if (isNaN(day) || isNaN(month) || isNaN(year)) return 0;
-  return year * 10000 + month * 100 + day;
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    let year = parseInt(parts[2], 10);
+    if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+      if (year < 100) year += 2000;
+      return year * 10000 + month * 100 + day;
+    }
+  }
+  
+  return 0;
+}
+
+export function parseDateParts(dateStr: string | undefined | null): { day: number; month: number; year: number } | null {
+  if (!dateStr) return null;
+  const str = dateStr.trim();
+  
+  // Try YYYY-MM-DD format
+  if (str.includes('-')) {
+    const parts = str.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      const day = parseInt(parts[2], 10);
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        return { day, month, year };
+      }
+    }
+  }
+  
+  // Try DD/MM/YYYY or DD/MM/YY format
+  const parts = str.split('/');
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    let year = parseInt(parts[2], 10);
+    if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+      if (year < 100) year += 2000;
+      return { day, month, year };
+    }
+  }
+  
+  return null;
 }
 
 export function formatInputNumber(value: string | undefined | null): string {
@@ -466,19 +650,27 @@ export async function loadCatalogData(): Promise<CatalogItem[]> {
           const rangkaRaw = clean(row['Rangka']);
           const batuRaw = clean(row['Jenis Batu']);
 
+          let modalRangkaKey = 'Modal Rangka';
+          let modalMutiaraKey = 'Modal Mutiara';
+          for (const key of Object.keys(row)) {
+            const k = key.trim();
+            if (k.startsWith('Modal Rangka')) modalRangkaKey = key;
+            if (k.startsWith('Modal Mutiara')) modalMutiaraKey = key;
+          }
+
           items.push({
             id: kode,
             no,
-            status,
+            status: clean(row['Status']),
             fotoR: clean(row['Foto R']),
             fotoK: clean(row['Foto K']),
             kode,
             tanggal: clean(row['Tanggal']),
             tipeBarang,
-            modalRangka: parseAmount(row['Modal Rangka 04/06/2026']),
-            modalMutiara: parseAmount(row['Modal Mutiara']),
-            hargaJual: parseAmount(row['Harga Jual']) || parseAmount(row[' Harga Barkode']), // Use barkode if available or jual
-            hargaBarkode: parseAmount(row[' Harga Barkode']),
+            modalRangka: parseAmount(row[modalRangkaKey]),
+            modalMutiara: parseAmount(row[modalMutiaraKey]),
+            hargaJual: parseAmount(row['Harga Jual']) || parseAmount(row['Harga Barkode']), // Use barkode if available or jual
+            hargaBarkode: parseAmount(row['Harga Barkode']),
             rangka: RANGKA_MAP[rangkaRaw.toUpperCase()] || rangkaRaw,
             beratRangka: clean(row['Berat Rangka']),
             jenisMutiara,
@@ -505,4 +697,33 @@ export async function loadCatalogData(): Promise<CatalogItem[]> {
       }
     });
   });
+}
+
+export function resolveImageUrl(imgUrl?: string | null): string {
+  if (!imgUrl) return '';
+  const s = imgUrl.trim();
+  if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) {
+    return s;
+  }
+  
+  const isDev = import.meta.env.DEV;
+  
+  // If it is a full local path containing a directory separator
+  if (s.includes('Downloads\\') || s.includes('Downloads/') || s.includes('\\') || s.includes('/')) {
+    const parts = s.split(/[\\\/]/);
+    const fileName = parts[parts.length - 1];
+    
+    // Serve via the local-media proxy in Vite dev server
+    if (isDev) {
+      return `/local-media/${encodeURIComponent(fileName)}`;
+    }
+    
+    // In production (dist), fallback to a file URI if opened locally
+    let cleanPath = s.replace(/\\/g, '/');
+    if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
+    return `file://${cleanPath}`;
+  }
+  
+  // Plain filename (no path, no protocol): return as-is.
+  return s;
 }

@@ -1,6 +1,7 @@
 // src/types.ts
 export interface CustomerRow {
   id: string;
+  no?: string;
   namaInstagram: string;
   instagram: string;
   tanggalOrder: string;
@@ -35,6 +36,7 @@ export interface CustomerRow {
   resi?: string;
   orderStatus?: 'pending' | 'dikirim' | 'selesai' | 'retur';
   raw: string[];
+  attachments?: string[];
 }
 
 export interface Customer {
@@ -64,6 +66,7 @@ export interface PendingOrder {
   alamat?: string;
   status: 'pending';
   createdAt?: string;
+  attachments?: string[];
 }
 
 export interface CatalogItem {

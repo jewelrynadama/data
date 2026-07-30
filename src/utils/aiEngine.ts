@@ -1,12 +1,13 @@
 import type { Customer, CustomerRow } from '../types';
 import { getBirthdayAlerts } from './birthday';
 import { computeMonthlyStats } from './reportHelper';
+import { cleanPrice } from './csvLoader';
 import type { StoreSettings } from '../pages/SettingsPage';
 // Using the provided Groq API key for demonstration/prototype
 const GROQ_API_KEY = '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';
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-export async function generateMarketAnalysis(): Promise<{analysis: string, keyword: string}> {
+export async function generateMarketAnalysis(storeData?: { customers: Customer[], rows: CustomerRow[] }): Promise<{analysis: string, keyword: string}> {
   const systemPrompt = `
 Anda adalah Chief Marketing Officer (CMO) & Data Scientist Kelas Dunia spesialis e-commerce Indonesia (Shopee, Tokopedia, TikTok Shop).
 Tugas Anda adalah memberikan "Proposal Insight Pasar & Growth Strategy" perhiasan mutiara di Indonesia bulan ini secara komprehensif, mindblowing, dan mendalam.
@@ -23,6 +24,47 @@ Instruksi Wajib:
    - **Celah Pasar (Blue Ocean)** (Peluang produk mutiara yang belum banyak digarap kompetitor lokal)
 `;
 
+  let storeContext = '';
+  if (storeData) {
+    const { customers, rows } = storeData;
+    
+    const productCounts: Record<string, number> = {};
+    let totalRevenue = 0;
+    const now = new Date();
+    
+    let monthlyRev = 0;
+    
+    rows.forEach(r => {
+      const type = r.type || 'Lainnya';
+      productCounts[type] = (productCounts[type] || 0) + 1;
+      
+      const val = parseInt((r.totalBayar || '0').replace(/[^\d]/g, ''), 10) || 0;
+      totalRevenue += val;
+      
+      const match = r.tanggalOrder?.match(/^(\d{4})-(\d{2})/);
+      if (match && parseInt(match[1]) === now.getFullYear() && parseInt(match[2]) === (now.getMonth() + 1)) {
+        monthlyRev += val;
+      }
+    });
+    
+    const sortedProducts = Object.entries(productCounts).sort((a, b) => b[1] - a[1]);
+    const top3 = sortedProducts.slice(0, 3).map(p => p[0]).join(', ');
+    const lessLaku = sortedProducts.filter(p => p[1] < 3).map(p => p[0]).join(', ');
+    
+    const repeatCusts = customers.filter(c => (c.orders?.length || 0) > 1).length;
+    const retentionRate = customers.length > 0 ? ((repeatCusts / customers.length) * 100).toFixed(1) : '0';
+
+    storeContext = `
+DATA TOKO SAYA (gunakan untuk rekomendasi yang lebih personal):
+- Total pelanggan: ${customers.length}
+- Total transaksi: ${rows.length}
+- Top 3 produk terlaris: ${top3}
+- Produk yang kurang laku (< 3 orders): ${lessLaku || 'Tidak ada'}
+- Revenue bulan ini: Rp ${monthlyRev.toLocaleString('id-ID')}
+- Customer retention rate: ${retentionRate}%
+`;
+  }
+
   try {
     const response = await fetch(GROQ_API_URL, {
       method: 'POST',
@@ -34,7 +76,7 @@ Instruksi Wajib:
         model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: "Berikan laporan tren perhiasan mutiara di Indonesia bulan ini." }
+          { role: 'user', content: "Berikan laporan tren perhiasan mutiara di Indonesia bulan ini.\n\n" + storeContext }
         ],
         temperature: 0.8,
         max_tokens: 4000,
@@ -136,6 +178,32 @@ export async function fetchRealImages(query: string): Promise<{src: string, titl
   }
 }
 
+export async function generateWACampaign(trendContext: string): Promise<string> {
+  try {
+    const response = await fetch(GROQ_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: 'Anda adalah copywriter WA marketing ahli. Buat 1 pesan broadcast WA (maksimal 3 paragraf) yang menarik dan persuasif, menggunakan emoji, berdasarkan insight tren berikut. Jangan ada kata-kata pembuka/penutup, langsung pesannya saja.' },
+          { role: 'user', content: trendContext }
+        ],
+        temperature: 0.7,
+        max_tokens: 300,
+      })
+    });
+    const data = await response.json();
+    return data.choices[0].message.content || 'Gagal membuat pesan WA.';
+  } catch (error) {
+    console.error('Failed to generate WA:', error);
+    return 'Gagal membuat pesan WA.';
+  }
+}
+
 export async function askJarvis(query: string, customers: Customer[], rows: CustomerRow[] = [], chatHistory: {role: 'user'|'assistant', content: string}[] = [], settings?: StoreSettings): Promise<string> {
   const totalCustomers = customers.length;
   const totalRevenue = customers.reduce((sum, c) => sum + (c.totalSpend || 0), 0);
@@ -155,7 +223,7 @@ export async function askJarvis(query: string, customers: Customer[], rows: Cust
   const yearlyStats: Record<string, { revenue: number, products: Record<string, number>, months: Set<number> }> = {};
 
   for (const r of rows) {
-    const val = parseInt(r.totalBayar?.replace(/\D/g, '') || '0', 10);
+    const val = cleanPrice(r.totalBayar);
     const dateStr = r.tanggalOrder || '';
     
     // Extract year and month from date string (YYYY-MM)

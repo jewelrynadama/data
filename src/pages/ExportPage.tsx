@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Download, CheckCircle } from 'lucide-react';
 import type { Customer, CustomerRow } from '../types';
 import { formatRupiah } from '../utils/csvLoader';
-import { exportLocalStore, importLocalStore } from '../utils/localStore';
+import { exportLocalStore, importLocalStore, readStore } from '../utils/localStore';
 
 interface Props {
   customers: Customer[];
@@ -68,6 +68,30 @@ export default function ExportPage({ customers, rows, onImportSuccess }: Props) 
     downloadCSV('orders.csv', csvRows.join('\n'));
   }
 
+  function exportNewOrders() {
+    const s = readStore();
+    const orderRows = s.newOrders;
+    const header = ['Customer', 'Order Date', 'Type', 'Pearl', 'Size', 'Color', 'Grade', 'Stone', 'Payment', 'Total (IDR)', 'Courier', 'Shipping Cost'];
+    const csvRows = [header.join(',')];
+    for (const r of orderRows) {
+      csvRows.push([
+        `"${r.namaInstagram || r.namaPengiriman}"`,
+        `"${r.tanggalOrder}"`,
+        `"${r.jenis}"`,
+        `"${r.type}"`,
+        `"${r.size}"`,
+        `"${r.color}"`,
+        `"${r.grade}"`,
+        `"${r.stone}"`,
+        `"${r.paymentVia}"`,
+        r.totalBayar.replace(/\D/g, '') || '0',
+        `"${r.kurir}"`,
+        r.ongkir.replace(/\D/g, '') || '0',
+      ].join(','));
+    }
+    downloadCSV('new_orders_to_paste.csv', csvRows.join('\n'));
+  }
+
   function exportSummary() {
     const orderRows = rows.filter((r) => r.jenis);
     const totalRev = customers.reduce((s, c) => s + c.totalSpend, 0);
@@ -111,6 +135,14 @@ export default function ExportPage({ customers, rows, onImportSuccess }: Props) 
   }
 
   const exports = [
+    {
+      id: 'new_orders',
+      title: 'New Orders (For Spreadsheet)',
+      desc: `Export only newly added orders that are not yet in the Spreadsheet. Use this to copy-paste.`,
+      icon: '🆕',
+      action: exportNewOrders,
+      filename: 'new_orders_to_paste.csv',
+    },
     {
       id: 'customers',
       title: 'Customer List',

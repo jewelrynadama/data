@@ -1,0 +1,14 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      // Only authenticated users can read or write
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        // Max file size: 10 MB
+        && request.resource.size < 10 * 1024 * 1024
+        // Only allow common image/document types
+        && request.resource.contentType.matches('image/.*|application/pdf|application/json');
+    }
+  }
+}

@@ -1,15 +1,16 @@
 // src/pages/InboxPage.tsx
 import { useState } from 'react';
 import { Check, Copy, CheckCircle, Trash2, Globe, ShoppingBag, Terminal, BookOpen } from 'lucide-react';
-import type { PendingOrder } from '../types';
+import type { PendingOrder, Customer } from '../types';
 
 interface Props {
   pendingOrders: PendingOrder[];
   onAccept: (order: PendingOrder) => Promise<void>;
   onReject: (order: PendingOrder) => Promise<void>;
+  customers?: Customer[];
 }
 
-export default function InboxPage({ pendingOrders, onAccept, onReject }: Props) {
+export default function InboxPage({ pendingOrders, onAccept, onReject, customers = [] }: Props) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showGuide, setShowGuide] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -49,7 +50,7 @@ export default function InboxPage({ pendingOrders, onAccept, onReject }: Props) 
       source: 'website',
       orderDate: new Date().toLocaleDateString('id-ID'),
       customerName: customerName,
-      wa: waNumber ? waNumber.replace(/\\D/g, '') : '',
+      wa: waNumber ? waNumber.replace(/\D/g, '') : '',
       productName: productName,
       totalPrice: Number(totalPrice),
       qty: Number(qty),
@@ -125,8 +126,8 @@ export default function InboxPage({ pendingOrders, onAccept, onReject }: Props) 
             const orderId = row.querySelector('.order-sn-text')?.innerText || 'SP-' + Date.now();
             const customerName = row.querySelector('.buyer-name-text')?.innerText || 'Pelanggan Shopee';
             const productName = row.querySelector('.product-name-text')?.innerText || 'Perhiasan Mutiara';
-            const totalPrice = Number((row.querySelector('.total-amount-text')?.innerText || '0').replace(/\\D/g, ''));
-            const qty = Number((row.querySelector('.quantity-text')?.innerText || '1').replace(/\\D/g, ''));
+            const totalPrice = Number((row.querySelector('.total-amount-text')?.innerText || '0').replace(/\D/g, ''));
+            const qty = Number((row.querySelector('.quantity-text')?.innerText || '1').replace(/\D/g, ''));
             const address = row.querySelector('.address-text')?.innerText || 'Shopee Order';
 
             db.collection('pending_orders').doc(orderId).set({
@@ -190,7 +191,7 @@ export default function InboxPage({ pendingOrders, onAccept, onReject }: Props) 
   }
 
   return (
-    <div className="page-body" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div className="page-body inbox-page">
       {/* Header Info */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
         <div>
@@ -284,14 +285,31 @@ export default function InboxPage({ pendingOrders, onAccept, onReject }: Props) 
             const badgeColor = isShopee ? '#ea580c' : '#2563eb';
             const badgeText = isShopee ? '🟠 Shopee Order' : '🌐 Website Order';
 
+            const orderWaClean = order.wa ? order.wa.replace(/\D/g, '') : '';
+            let matchedCustomer: Customer | null = null;
+            if (customers.length > 0) {
+              matchedCustomer = customers.find(c => {
+                if (orderWaClean && c.wa) {
+                  const cWaClean = c.wa.replace(/\D/g, '');
+                  if (cWaClean && (cWaClean.endsWith(orderWaClean) || orderWaClean.endsWith(cWaClean))) return true;
+                }
+                if (order.customerName && c.nama && c.nama.toLowerCase().includes(order.customerName.toLowerCase())) return true;
+                return false;
+              }) || null;
+            }
+
+            const isVip = matchedCustomer ? (matchedCustomer.totalSpend >= 15000000) : false;
+            const isLoyal = matchedCustomer ? (!isVip && matchedCustomer.orderCount >= 3) : false;
+
             return (
               <div
                 key={order.id}
                 className="card"
                 style={{
-                  borderLeft: `4px solid ${badgeColor}`,
+                  borderLeft: `4px solid ${matchedCustomer && isVip ? '#eab308' : badgeColor}`,
                   opacity: processingId === order.id ? 0.6 : 1,
                   pointerEvents: processingId === order.id ? 'none' : 'auto',
+                  boxShadow: matchedCustomer && isVip ? '0 0 0 1px #eab308, 0 4px 12px rgba(234,179,8,0.1)' : undefined,
                 }}
               >
                 <div style={{ padding: '16px 20px', display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -307,6 +325,23 @@ export default function InboxPage({ pendingOrders, onAccept, onReject }: Props) 
 
                   {/* Order Details */}
                   <div style={{ flex: 1, minWidth: 260, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {matchedCustomer ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: isVip ? 'rgba(234, 179, 8, 0.15)' : 'rgba(16, 185, 129, 0.15)', color: isVip ? '#ca8a04' : '#059669', width: 'fit-content' }}>
+                          ✅ Customer Dikenal — {isVip ? 'VIP' : isLoyal ? 'Loyal' : 'Reguler'}
+                        </span>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                          Total belanja: Rp {matchedCustomer.totalSpend.toLocaleString('id-ID')} • Total order: {matchedCustomer.orderCount} • Terakhir beli: {matchedCustomer.lastOrder || '-'}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', width: 'fit-content' }}>
+                          🆕 Customer Baru
+                        </span>
+                      </div>
+                    )}
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
                         {order.customerName}

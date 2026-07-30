@@ -343,28 +343,6 @@ export default function CommandCenter({
       animation: 'fadeIn 0.2s ease'
     }}>
       
-      {/* CSS Animation injection */}
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes scaleIn { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .command-item {
-          padding: 12px 16px;
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          cursor: pointer;
-          color: var(--text-secondary);
-          transition: all 0.15s ease;
-          border: 1px solid transparent;
-        }
-        .command-item.selected {
-          background: rgba(124, 58, 237, 0.15) !important;
-          color: #fff !important;
-          border: 1px solid rgba(124, 58, 237, 0.3) !important;
-        }
-      `}</style>
-
       {/* Main command palette box */}
       <div
         ref={containerRef}

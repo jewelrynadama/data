@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Store data (manual customer/order edits) ─────────────────────────────
+    match /store_data/{docId} {
+      allow read, write: if request.auth != null
+        && request.resource.data.keys().hasAll(['newCustomers','newOrders','deletedCustomerIds','deletedOrderIds','editedCustomers','editedOrders','inventoryLogs']);
+    }
+
+    // ── Pending orders (from website / Shopee integrations) ──────────────────
+    match /pending_orders/{orderId} {
+      // Any authenticated user can read & delete pending orders
+      allow read, delete: if request.auth != null;
+      // Writes require basic shape validation
+      allow create, update: if request.auth != null
+        && request.resource.data.keys().hasAll(['customerName','productName','totalPrice','qty','status','source'])
+        && request.resource.data.status == 'pending'
+        && request.resource.data.totalPrice is number
+        && request.resource.data.qty is number;
+    }
+
+    // ── User profiles (for future multi-user role support) ───────────────────
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ── Activity logs (append-only, stored in Firestore as future enhancement)
+    match /activity_logs/{logId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      // Disallow edit/delete to preserve audit integrity
+      allow update, delete: if false;
+    }
+
+    // ── Default: deny everything else ────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
