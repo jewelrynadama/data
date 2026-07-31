@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Upload, Trash2, Search, MessageCircle, X, ChevronDown } from 'lucide-react';
+import { Upload, Trash2, Search, MessageCircle, X, ChevronDown, Calendar, Filter } from 'lucide-react';
 import {
   getAllThreads,
   getThreadsForCustomer,
@@ -24,6 +24,10 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
   
   const [searchQuery, setSearchQuery] = useState('');
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   
   const [importPreview, setImportPreview] = useState<ChatThread | null>(null);
   const [importStoreName, setImportStoreName] = useState('');
@@ -99,13 +103,63 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
 
   const activeThread = useMemo(() => threads.find(t => t.id === activeThreadId) || null, [threads, activeThreadId]);
 
+  const filteredMessages = useMemo(() => {
+    if (!activeThread) return [];
+    return activeThread.messages.filter((msg: ChatMessage) => {
+      if (dateFilter === 'all') return true;
+      
+      let msgDateObj = new Date(msg.dateStr);
+      if (isNaN(msgDateObj.getTime())) {
+         const dPart = msg.dateStr.split(/[\s,]+/)[0];
+         if (dPart) {
+             const parts = dPart.includes('/') ? dPart.split('/') : dPart.split('-');
+             if (parts.length === 3) {
+                 const p0 = parseInt(parts[0]);
+                 const p1 = parseInt(parts[1]);
+                 const p2 = parseInt(parts[2]);
+                 if (p2 > 31) {
+                     msgDateObj = new Date(p2 < 100 ? 2000 + p2 : p2, p1 - 1, p0);
+                 } else if (p0 > 31) {
+                     msgDateObj = new Date(p0, p1 - 1, p2);
+                 } else {
+                     msgDateObj = new Date(p2 < 100 ? 2000 + p2 : p2, p1 - 1, p0);
+                 }
+             }
+         }
+      }
+      if (isNaN(msgDateObj.getTime())) return true;
+      
+      const now = new Date();
+      if (dateFilter === 'today') {
+        return msgDateObj.toDateString() === now.toDateString();
+      }
+      if (dateFilter === 'week') {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return msgDateObj >= weekAgo;
+      }
+      if (dateFilter === 'month') {
+        return msgDateObj.getMonth() === now.getMonth() && msgDateObj.getFullYear() === now.getFullYear();
+      }
+      if (dateFilter === 'custom') {
+        if (customStartDate && customEndDate) {
+           return msgDateObj >= new Date(customStartDate) && msgDateObj <= new Date(customEndDate + 'T23:59:59');
+        } else if (customStartDate) {
+           return msgDateObj >= new Date(customStartDate);
+        } else if (customEndDate) {
+           return msgDateObj <= new Date(customEndDate + 'T23:59:59');
+        }
+      }
+      return true;
+    });
+  }, [activeThread, dateFilter, customStartDate, customEndDate]);
+
   const searchMatches = useMemo(() => {
-    if (!activeThread || !searchQuery) return [];
+    if (!filteredMessages) return [];
     const query = searchQuery.toLowerCase();
-    return activeThread.messages
+    return filteredMessages
       .map((m: ChatMessage, index: number) => m.text.toLowerCase().includes(query) ? index : -1)
       .filter((i: number) => i !== -1);
-  }, [activeThread, searchQuery]);
+  }, [filteredMessages, searchQuery]);
 
   const renderMessageContent = (content: string, index: number) => {
     const attachmentRegex = /<(?:terlampir|attached):\s*([^>]+)>/gi;
@@ -225,14 +279,22 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
 
   const renderMessages = () => {
     if (!activeThread) return null;
+    if (!filteredMessages || filteredMessages.length === 0) {
+      return (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+          Tidak ada pesan yang sesuai dengan filter tanggal.
+        </div>
+      );
+    }
+    
     let currentDate = '';
-    return activeThread.messages.map((msg: ChatMessage, idx: number) => {
+    return filteredMessages.map((msg: ChatMessage, idx: number) => {
       const msgDateObj = new Date(msg.dateStr);
       const msgDate = isNaN(msgDateObj.getTime()) ? msg.dateStr.split(' ')[0] : msgDateObj.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
       const showDate = msgDate !== currentDate;
       if (showDate) currentDate = msgDate;
 
-      const prevMsg = idx > 0 ? activeThread.messages[idx - 1] : null;
+      const prevMsg = idx > 0 ? filteredMessages[idx - 1] : null;
       const showSender = !prevMsg || prevMsg.sender !== msg.sender || showDate;
       const timeStr = msg.dateStr.includes(' ') ? msg.dateStr.split(' ')[1].substring(0, 5) : msgDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -361,10 +423,43 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
                   <MessageCircle size={20} color="var(--text-muted)" />
                   <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{activeThread.customerName || 'Chat'}</span>
                   <span style={{ fontSize: '0.8rem', background: 'var(--bg-card)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
-                    {activeThread.messages.length} msgs
+                    {filteredMessages.length} / {activeThread.messages.length} msgs
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-card)', padding: '4px 12px', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                  <Filter size={14} color="var(--text-muted)" />
+                  <select 
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value as any)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
+                  >
+                    <option value="all">Semua Waktu</option>
+                    <option value="today">Hari Ini</option>
+                    <option value="week">Minggu Ini</option>
+                    <option value="month">Bulan Ini</option>
+                    <option value="custom">Pilih Tanggal...</option>
+                  </select>
+                  
+                  {dateFilter === 'custom' && (
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginLeft: '4px', paddingLeft: '8px', borderLeft: '1px solid var(--border)' }}>
+                       <input 
+                         type="date" 
+                         value={customStartDate} 
+                         onChange={(e) => setCustomStartDate(e.target.value)} 
+                         style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-primary)', padding: '2px 4px', fontSize: '0.8rem' }}
+                       />
+                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
+                       <input 
+                         type="date" 
+                         value={customEndDate} 
+                         onChange={(e) => setCustomEndDate(e.target.value)} 
+                         style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-primary)', padding: '2px 4px', fontSize: '0.8rem' }}
+                       />
+                    </div>
+                  )}
+                  
+                  <div style={{ width: '1px', height: '16px', background: 'var(--border)', margin: '0 8px' }} />
+                  
                   <Search size={16} color="var(--text-muted)" />
                   <input 
                     type="text" 
