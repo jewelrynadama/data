@@ -134,6 +134,12 @@ export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
+  // Force reset any rogue scroll position that Chrome might have restored
+  useEffect(() => {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, []);
+  
   // Store settings state
   const [settings, setSettings] = useState<StoreSettings>(() => {
     const saved = localStorage.getItem('pearlcrm_settings');
@@ -173,6 +179,11 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Custom global styles are no longer needed
+  useEffect(() => {
+    // Removed style injection
+  }, []);
 
   useEffect(() => {
     document.title = settings.appName || 'PearlCRM';
@@ -833,7 +844,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" style={{ overflow: 'hidden', height: '100vh', display: 'flex' }}>
       <div className="ambient-glow g-1"></div>
       <div className="ambient-glow g-2"></div>
       {/* Mobile Sidebar Overlay */}
@@ -863,7 +874,7 @@ export default function App() {
         onClose={() => setSidebarOpen(false)}
       />
 
-      <div className="main-content">
+      <div className="main-content" style={{ overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>
         {/* Top Header */}
         <div className="top-header">
           <div className="header-left">
@@ -1083,7 +1094,7 @@ export default function App() {
 
         {/* Pages */}
         {!loading && !error && (
-          <div className="pages-container">
+          <div className="pages-container" style={{ overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>
           <ErrorBoundary pageName="Halaman ini">
           <Suspense fallback={
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 16 }}>

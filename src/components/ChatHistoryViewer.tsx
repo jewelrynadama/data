@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Upload, Trash2, Search, MessageCircle, X, ChevronDown, Filter } from 'lucide-react';
+import AttachmentViewer from './AttachmentViewer';
 import {
   getAllThreads,
   getThreadsForCustomer,
@@ -156,6 +157,7 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
   const searchMatches = useMemo(() => {
     if (!filteredMessages) return [];
     const query = searchQuery.toLowerCase();
+    if (!query) return []; // FIX: Don't match everything if query is empty
     return filteredMessages
       .map((m: ChatMessage, index: number) => m.text.toLowerCase().includes(query) ? index : -1)
       .filter((i: number) => i !== -1);
@@ -180,53 +182,7 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
 
     return tokens.map((token, tIdx) => {
       if (token.type === 'attachment') {
-        const filename = token.filename || '';
-        const ext = filename.split('.').pop()?.toLowerCase();
-        
-        if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext || '')) {
-          return (
-            <div key={`att-${tIdx}`} style={{ marginTop: 8, marginBottom: 8 }}>
-              <img 
-                src={`/data/nadama_images/${filename}`} 
-                alt={filename} 
-                title={filename}
-                style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '8px', cursor: 'pointer', border: '1px solid var(--border)' }} 
-                onClick={() => window.open(`/data/nadama_images/${filename}`, '_blank')}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                  const parent = (e.target as HTMLImageElement).parentElement;
-                  if (parent && parent.children.length === 1) {
-                    const span = document.createElement('span');
-                    span.textContent = `📎 ${filename} (Image not found)`;
-                    span.style.color = 'var(--text-muted)';
-                    span.style.fontSize = '0.85rem';
-                    parent.appendChild(span);
-                  }
-                }}
-              />
-            </div>
-          );
-        }
-        
-        if (['mp4', 'mov', 'avi'].includes(ext || '')) {
-           return (
-             <div key={`att-${tIdx}`} style={{ marginTop: 8, marginBottom: 8 }}>
-               <video 
-                 src={`/data/nadama_images/${filename}`} 
-                 controls
-                 style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '8px', border: '1px solid var(--border)' }} 
-               />
-             </div>
-           );
-        }
-
-        return (
-          <div key={`att-${tIdx}`} style={{ marginTop: 8, marginBottom: 8 }}>
-            <a href={`/data/nadama_images/${filename}`} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.05)', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-primary)', textDecoration: 'none', fontSize: '0.85rem' }}>
-              📎 {filename}
-            </a>
-          </div>
-        );
+        return <AttachmentViewer key={`att-${tIdx}`} filename={token.filename} />;
       }
       
       const text = token.text || '';
@@ -486,7 +442,7 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
               </div>
               
               {/* Messages */}
-              <div ref={messageListRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column' }}>
+              <div ref={messageListRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', overflowAnchor: 'none' }}>
                 {renderMessages()}
                 <div ref={messagesEndRef} />
               </div>
