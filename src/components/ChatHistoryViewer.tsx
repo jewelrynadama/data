@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Upload, Trash2, Search, MessageCircle, X, ChevronDown, Calendar, Filter } from 'lucide-react';
+import { Upload, Trash2, Search, MessageCircle, X, ChevronDown, Filter } from 'lucide-react';
 import {
   getAllThreads,
   getThreadsForCustomer,
