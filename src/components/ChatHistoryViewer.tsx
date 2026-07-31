@@ -182,7 +182,7 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
 
     return tokens.map((token, tIdx) => {
       if (token.type === 'attachment') {
-        return <AttachmentViewer key={`att-${tIdx}`} filename={token.filename} />;
+        return <AttachmentViewer key={`att-${tIdx}`} filename={token.filename || ''} />;
       }
       
       const text = token.text || '';
