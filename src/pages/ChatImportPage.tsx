@@ -16,10 +16,9 @@ export default function ChatImportPage({ customers }: Props) {
   const customersWithChat = customers.filter(c => threads.some(t => t.waNumber === c.wa)).length;
   
   return (
-    <div className="page-body" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: '12px', paddingBottom: '16px' }}>
+    <div className="page-body">
       {showBanner && (
         <div style={{
-          flexShrink: 0,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -29,6 +28,7 @@ export default function ChatImportPage({ customers }: Props) {
           borderRadius: 10,
           color: 'var(--text-primary)',
           fontSize: '13px',
+          marginBottom: '16px'
         }}>
           <div>
             Fitur ini membaca file export WhatsApp (.txt). Chat tersimpan di perangkat Anda, tidak dikirim ke server manapun. 🔒 100% Privat
@@ -49,17 +49,17 @@ export default function ChatImportPage({ customers }: Props) {
         </div>
       )}
 
-      <div className="card" style={{ padding: '16px 20px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+      <div className="card" style={{ padding: '20px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 600 }}>💬 WhatsApp Chat History</h1>
+            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 600 }}>💬 WhatsApp Chat History</h1>
             <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '13px' }}>Lihat riwayat chat WhatsApp per pelanggan</p>
           </div>
           
           <div style={{ 
             display: 'flex', 
             gap: '24px', 
-            padding: '8px 16px',
+            padding: '10px 20px',
             background: 'var(--bg-secondary)',
             borderRadius: '10px',
             border: '1px solid var(--border)'
@@ -80,7 +80,7 @@ export default function ChatImportPage({ customers }: Props) {
         </div>
       </div>
 
-      <div className="card" style={{ flex: 1, minHeight: 0, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div className="card" style={{ height: 'calc(100vh - 300px)', minHeight: '400px', padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <ChatHistoryViewer />
       </div>
     </div>
