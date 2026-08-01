@@ -413,15 +413,12 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
          />
        )}
 
-       {/* MAIN CHAT AREA - always renders */}
-       <div style={{
-         flex: 1,
-         display: 'flex',
-         flexDirection: 'column',
-         background: 'var(--bg-card)',
-         position: 'relative',
-         minWidth: 0
-       }}>
+       {/* MAIN CHAT AREA - fullscreen on mobile when thread active */}
+       <div style={
+         isMobile && activeThreadId && !showSidebar
+           ? { position: 'fixed', inset: 0, zIndex: 30, display: 'flex', flexDirection: 'column', background: 'var(--bg-card)' }
+           : { flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-card)', position: 'relative', minWidth: 0 }
+       }>
           {activeThread ? (
             <>
               {/* Header - 2 baris */}
