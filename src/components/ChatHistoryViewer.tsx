@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Upload, Trash2, Search, MessageCircle, X, ChevronDown, Filter } from 'lucide-react';
+import { Upload, Trash2, Search, MessageCircle, X, ChevronDown, Calendar, ArrowLeft } from 'lucide-react';
 import AttachmentViewer from './AttachmentViewer';
 import {
   getAllThreads,
@@ -26,9 +26,8 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
   const [searchQuery, setSearchQuery] = useState('');
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   
-  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const [dateFilter, setDateFilter] = useState<string>('Semua');
+  const [showMonthDropdown, setShowMonthDropdown] = useState(false);
   
   const [importPreview, setImportPreview] = useState<ChatThread | null>(null);
   const [importStoreName, setImportStoreName] = useState('');
@@ -37,6 +36,19 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
+
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  const [showSidebar, setShowSidebar] = useState(true);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 640;
+      setIsMobile(mobile);
+      if (!mobile) setShowSidebar(true);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     loadThreads();
@@ -104,10 +116,38 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
 
   const activeThread = useMemo(() => threads.find(t => t.id === activeThreadId) || null, [threads, activeThreadId]);
 
+  useEffect(() => {
+    setDateFilter('Semua');
+  }, [activeThreadId]);
+
+  const availableMonths = useMemo(() => {
+    if (!activeThread) return [];
+    const monthsSet = new Set<string>();
+    activeThread.messages.forEach((msg: ChatMessage) => {
+      let msgDateObj = new Date(msg.dateStr);
+      if (isNaN(msgDateObj.getTime())) {
+         const dPart = msg.dateStr.split(/[\s,]+/)[0];
+         if (dPart) {
+             const parts = dPart.includes('/') ? dPart.split('/') : dPart.split('-');
+             if (parts.length === 3) {
+                 const p0 = parseInt(parts[0]);
+                 const p1 = parseInt(parts[1]);
+                 const p2 = parseInt(parts[2]);
+                 msgDateObj = new Date(p2 < 100 ? 2000 + p2 : p2, p1 - 1, p0 > 31 ? p2 : p0);
+             }
+         }
+      }
+      if (!isNaN(msgDateObj.getTime())) {
+        monthsSet.add(msgDateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }));
+      }
+    });
+    return Array.from(monthsSet);
+  }, [activeThread]);
+
   const filteredMessages = useMemo(() => {
     if (!activeThread) return [];
     return activeThread.messages.filter((msg: ChatMessage) => {
-      if (dateFilter === 'all') return true;
+      if (dateFilter === 'Semua') return true;
       
       let msgDateObj = new Date(msg.dateStr);
       if (isNaN(msgDateObj.getTime())) {
@@ -118,46 +158,21 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
                  const p0 = parseInt(parts[0]);
                  const p1 = parseInt(parts[1]);
                  const p2 = parseInt(parts[2]);
-                 if (p2 > 31) {
-                     msgDateObj = new Date(p2 < 100 ? 2000 + p2 : p2, p1 - 1, p0);
-                 } else if (p0 > 31) {
-                     msgDateObj = new Date(p0, p1 - 1, p2);
-                 } else {
-                     msgDateObj = new Date(p2 < 100 ? 2000 + p2 : p2, p1 - 1, p0);
-                 }
+                 msgDateObj = new Date(p2 < 100 ? 2000 + p2 : p2, p1 - 1, p0 > 31 ? p2 : p0);
              }
          }
       }
       if (isNaN(msgDateObj.getTime())) return true;
       
-      const now = new Date();
-      if (dateFilter === 'today') {
-        return msgDateObj.toDateString() === now.toDateString();
-      }
-      if (dateFilter === 'week') {
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return msgDateObj >= weekAgo;
-      }
-      if (dateFilter === 'month') {
-        return msgDateObj.getMonth() === now.getMonth() && msgDateObj.getFullYear() === now.getFullYear();
-      }
-      if (dateFilter === 'custom') {
-        if (customStartDate && customEndDate) {
-           return msgDateObj >= new Date(customStartDate) && msgDateObj <= new Date(customEndDate + 'T23:59:59');
-        } else if (customStartDate) {
-           return msgDateObj >= new Date(customStartDate);
-        } else if (customEndDate) {
-           return msgDateObj <= new Date(customEndDate + 'T23:59:59');
-        }
-      }
-      return true;
+      const msgMonthYear = msgDateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      return msgMonthYear === dateFilter;
     });
-  }, [activeThread, dateFilter, customStartDate, customEndDate]);
+  }, [activeThread, dateFilter]);
 
   const searchMatches = useMemo(() => {
     if (!filteredMessages) return [];
     const query = searchQuery.toLowerCase();
-    if (!query) return []; // FIX: Don't match everything if query is empty
+    if (!query) return [];
     return filteredMessages
       .map((m: ChatMessage, index: number) => m.text.toLowerCase().includes(query) ? index : -1)
       .filter((i: number) => i !== -1);
@@ -228,7 +243,6 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
 
   useEffect(() => {
     if (!searchQuery && messageListRef.current) {
-      // Use scrollTop instead of scrollIntoView to prevent the entire page from jumping down
       messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
     }
   }, [activeThreadId, searchQuery]);
@@ -238,28 +252,38 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
     if (!filteredMessages || filteredMessages.length === 0) {
       return (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-          Tidak ada pesan yang sesuai dengan filter tanggal.
+          Tidak ada pesan yang sesuai dengan filter.
         </div>
       );
     }
     
-    let currentDate = '';
+    let currentMonthYear = '';
     return filteredMessages.map((msg: ChatMessage, idx: number) => {
       const msgDateObj = new Date(msg.dateStr);
-      const msgDate = isNaN(msgDateObj.getTime()) ? msg.dateStr.split(' ')[0] : msgDateObj.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-      const showDate = msgDate !== currentDate;
-      if (showDate) currentDate = msgDate;
+      
+      const msgMonthYear = isNaN(msgDateObj.getTime()) ? msg.dateStr.split(' ')[0] : msgDateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      const showMonthDivider = msgMonthYear !== currentMonthYear;
+      if (showMonthDivider) currentMonthYear = msgMonthYear;
 
       const prevMsg = idx > 0 ? filteredMessages[idx - 1] : null;
-      const showSender = !prevMsg || prevMsg.sender !== msg.sender || showDate;
-      const timeStr = msg.dateStr.includes(' ') ? msg.dateStr.split(' ')[1].substring(0, 5) : msgDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const prevMsgDateObj = prevMsg ? new Date(prevMsg.dateStr) : null;
+      
+      const isNewDay = !prevMsgDateObj || isNaN(prevMsgDateObj.getTime()) || isNaN(msgDateObj.getTime()) 
+        ? true 
+        : prevMsgDateObj.toLocaleDateString() !== msgDateObj.toLocaleDateString();
+
+      const showSender = !prevMsg || prevMsg.sender !== msg.sender || showMonthDivider || isNewDay;
+      
+      const timeOnlyStr = msg.dateStr.includes(' ') ? msg.dateStr.split(' ')[1].substring(0, 5) : (!isNaN(msgDateObj.getTime()) ? msgDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+      const dayStr = !isNaN(msgDateObj.getTime()) ? msgDateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '';
+      const timeStr = dayStr ? `${dayStr}, ${timeOnlyStr}` : timeOnlyStr;
 
       return (
         <div key={idx} style={{ display: 'flex', flexDirection: 'column' }}>
-          {showDate && (
-            <div style={{ display: 'flex', alignItems: 'center', margin: '16px 0' }}>
+          {showMonthDivider && (
+            <div style={{ display: 'flex', alignItems: 'center', margin: '24px 0 16px 0' }}>
               <div style={{ flex: 1, height: 1, backgroundColor: 'var(--border)' }} />
-              <span style={{ margin: '0 12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{msgDate}</span>
+              <span style={{ margin: '0 12px', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', background: 'var(--bg-secondary)', padding: '4px 12px', borderRadius: '12px', border: '1px solid var(--border)' }}>{msgMonthYear}</span>
               <div style={{ flex: 1, height: 1, backgroundColor: 'var(--border)' }} />
             </div>
           )}
@@ -296,9 +320,18 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'row', height: '100%', width: '100%', border: 'none', borderRadius: 0, overflow: 'hidden' }}>
-       {/* Sidebar */}
-       <div style={{ width: '280px', display: 'flex', flexDirection: 'column', background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)' }}>
+    <div style={{ display: 'flex', flexDirection: 'row', height: '100%', width: '100%', border: 'none', borderRadius: 0, overflow: 'hidden', position: 'relative' }}>
+       {/* SIDEBAR */}
+       <div style={{
+         width: isMobile ? '100%' : '280px',
+         display: isMobile && !showSidebar ? 'none' : 'flex',
+         flexDirection: 'column',
+         background: 'var(--bg-secondary)',
+         borderRight: isMobile ? 'none' : '1px solid var(--border)',
+         position: isMobile ? 'absolute' : 'relative',
+         top: 0, left: 0, bottom: 0,
+         zIndex: isMobile ? 10 : 'auto'
+       }}>
           <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>Chat History</h3>
@@ -335,7 +368,7 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
               return (
                 <div 
                   key={thread.id} 
-                  onClick={() => setActiveThreadId(thread.id)}
+                  onClick={() => { setActiveThreadId(thread.id); if (isMobile) setShowSidebar(false); }}
                   style={{ 
                     padding: '12px 16px', 
                     borderBottom: '1px solid var(--border)',
@@ -369,63 +402,135 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
           </div>
        </div>
 
-       {/* Main Chat Area */}
-       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-card)', position: 'relative' }}>
+       {/* MAIN CHAT AREA */}
+       <div style={{
+         flex: 1,
+         display: isMobile && showSidebar ? 'none' : 'flex',
+         flexDirection: 'column',
+         background: 'var(--bg-card)',
+         position: 'relative'
+       }}>
           {activeThread ? (
             <>
-              {/* Header */}
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-secondary)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* Header - 2 baris */}
+              <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                {/* Row 1: Back button + Name + msg count */}
+                <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {isMobile && (
+                    <button
+                      onClick={() => setShowSidebar(true)}
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', padding: '4px', marginRight: '4px' }}
+                    >
+                      <ArrowLeft size={20} />
+                    </button>
+                  )}
                   <MessageCircle size={20} color="var(--text-muted)" />
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{activeThread.customerName || 'Chat'}</span>
-                  <span style={{ fontSize: '0.8rem', background: 'var(--bg-card)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
-                    {filteredMessages.length} / {activeThread.messages.length} msgs
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeThread.customerName || 'Chat'}</span>
+                  <span style={{ fontSize: '0.75rem', background: 'var(--bg-card)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-muted)', border: '1px solid var(--border)', flexShrink: 0 }}>
+                    {filteredMessages.length}/{activeThread.messages.length} msgs
                   </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-card)', padding: '4px 12px', borderRadius: '16px', border: '1px solid var(--border)' }}>
-                  <Filter size={14} color="var(--text-muted)" />
-                  <select 
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value as any)}
-                    style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
-                  >
-                    <option value="all">Semua Waktu</option>
-                    <option value="today">Hari Ini</option>
-                    <option value="week">Minggu Ini</option>
-                    <option value="month">Bulan Ini</option>
-                    <option value="custom">Pilih Tanggal...</option>
-                  </select>
-                  
-                  {dateFilter === 'custom' && (
-                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginLeft: '4px', paddingLeft: '8px', borderLeft: '1px solid var(--border)' }}>
-                       <input 
-                         type="date" 
-                         value={customStartDate} 
-                         onChange={(e) => setCustomStartDate(e.target.value)} 
-                         style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-primary)', padding: '2px 4px', fontSize: '0.8rem' }}
-                       />
-                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>-</span>
-                       <input 
-                         type="date" 
-                         value={customEndDate} 
-                         onChange={(e) => setCustomEndDate(e.target.value)} 
-                         style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-primary)', padding: '2px 4px', fontSize: '0.8rem' }}
-                       />
+                {/* Row 2: Period filter + Search */}
+                <div style={{ padding: '6px 12px 8px', display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto' }}>
+                  {/* Period label - hidden on mobile to save space */}
+                  {!isMobile && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      <Calendar size={14} color="var(--text-muted)" />
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Periode:</span>
                     </div>
                   )}
-                  
-                  <div style={{ width: '1px', height: '16px', background: 'var(--border)', margin: '0 8px' }} />
-                  
-                  <Search size={16} color="var(--text-muted)" />
+
+                  {/* Semua pill */}
+                  <button
+                    onClick={() => { setDateFilter('Semua'); setShowMonthDropdown(false); }}
+                    style={{
+                      padding: '3px 12px', borderRadius: '20px', border: 'none', flexShrink: 0,
+                      background: dateFilter === 'Semua' ? 'var(--primary-color, #1877F2)' : 'var(--bg-card)',
+                      color: dateFilter === 'Semua' ? '#fff' : 'var(--text-primary)',
+                      fontSize: '0.82rem', fontWeight: dateFilter === 'Semua' ? 600 : 400,
+                      cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s',
+                      boxShadow: dateFilter === 'Semua' ? '0 2px 4px rgba(24,119,242,0.25)' : 'none'
+                    }}
+                  >
+                    Semua
+                  </button>
+
+                  {/* First 2 month pills */}
+                  {availableMonths.slice(0, 2).map(my => (
+                    <button
+                      key={my}
+                      onClick={() => { setDateFilter(my); setShowMonthDropdown(false); }}
+                      style={{
+                        padding: '3px 12px', borderRadius: '20px', border: 'none', flexShrink: 0,
+                        background: dateFilter === my ? 'var(--primary-color, #1877F2)' : 'var(--bg-card)',
+                        color: dateFilter === my ? '#fff' : 'var(--text-primary)',
+                        fontSize: '0.82rem', fontWeight: dateFilter === my ? 600 : 400,
+                        cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s',
+                        boxShadow: dateFilter === my ? '0 2px 4px rgba(24,119,242,0.25)' : 'none'
+                      }}
+                    >
+                      {my}
+                    </button>
+                  ))}
+
+                  {/* More dropdown if > 2 months */}
+                  {availableMonths.length > 2 && (
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <button
+                        onClick={() => setShowMonthDropdown(v => !v)}
+                        style={{
+                          padding: '3px 10px', borderRadius: '20px', border: 'none',
+                          background: availableMonths.slice(2).includes(dateFilter) ? 'var(--primary-color, #1877F2)' : 'var(--bg-card)',
+                          color: availableMonths.slice(2).includes(dateFilter) ? '#fff' : 'var(--text-muted)',
+                          fontSize: '0.82rem', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s',
+                          display: 'flex', alignItems: 'center', gap: '3px',
+                          boxShadow: availableMonths.slice(2).includes(dateFilter) ? '0 2px 4px rgba(24,119,242,0.25)' : 'none'
+                        }}
+                      >
+                        {availableMonths.slice(2).includes(dateFilter) ? dateFilter : `+${availableMonths.length - 2} lainnya`}
+                        <ChevronDown size={12} style={{ transform: showMonthDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                      </button>
+                      {showMonthDropdown && (
+                        <div style={{
+                          position: 'fixed', zIndex: 200,
+                          background: 'var(--bg-card)', border: '1px solid var(--border)',
+                          borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                          minWidth: '170px', padding: '4px 0', maxHeight: '50vh', overflowY: 'auto'
+                        }}>
+                          {availableMonths.slice(2).map(my => (
+                            <button
+                              key={my}
+                              onClick={() => { setDateFilter(my); setShowMonthDropdown(false); }}
+                              style={{
+                                width: '100%', textAlign: 'left', padding: '10px 16px',
+                                border: 'none', background: dateFilter === my ? 'rgba(24,119,242,0.1)' : 'transparent',
+                                color: dateFilter === my ? 'var(--primary-color, #1877F2)' : 'var(--text-primary)',
+                                fontSize: '0.9rem', fontWeight: dateFilter === my ? 600 : 400,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {my}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Divider */}
+                  <div style={{ width: '1px', height: '16px', background: 'var(--border)', margin: '0 4px', flexShrink: 0 }} />
+
+                  {/* Search */}
+                  <Search size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
                   <input 
                     type="text" 
-                    placeholder="Search..." 
+                    placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', width: '120px', fontSize: '0.9rem' }}
+                    style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', width: isMobile ? '70px' : '120px', fontSize: '0.9rem', minWidth: 0 }}
                   />
                   {searchQuery && searchMatches.length > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: 'var(--text-muted)', flexShrink: 0 }}>
                       {currentMatchIndex + 1}/{searchMatches.length}
                       <button onClick={handleSearchPrev} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
                         <ChevronDown size={14} style={{ transform: 'rotate(180deg)' }} />
@@ -436,7 +541,7 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
                     </div>
                   )}
                   {searchQuery && searchMatches.length === 0 && (
-                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>0/0</span>
+                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flexShrink: 0 }}>0/0</span>
                   )}
                 </div>
               </div>
