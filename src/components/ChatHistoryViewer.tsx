@@ -321,16 +321,19 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
 
   return (
     <div style={{ display: 'flex', flexDirection: 'row', height: '100%', width: '100%', border: 'none', borderRadius: 0, overflow: 'hidden', position: 'relative' }}>
-       {/* SIDEBAR */}
+       {/* SIDEBAR - absolute overlay on mobile, normal flow on desktop */}
        <div style={{
          width: isMobile ? '100%' : '280px',
-         display: isMobile && !showSidebar ? 'none' : 'flex',
+         display: 'flex',
          flexDirection: 'column',
          background: 'var(--bg-secondary)',
          borderRight: isMobile ? 'none' : '1px solid var(--border)',
          position: isMobile ? 'absolute' : 'relative',
          top: 0, left: 0, bottom: 0,
-         zIndex: isMobile ? 10 : 'auto'
+         zIndex: isMobile ? 20 : 'auto',
+         transform: isMobile && !showSidebar ? 'translateX(-100%)' : 'translateX(0)',
+         transition: 'transform 0.25s ease',
+         boxShadow: isMobile && showSidebar ? '4px 0 16px rgba(0,0,0,0.2)' : 'none'
        }}>
           <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -402,13 +405,22 @@ export default function ChatHistoryViewer({ waNumber, customerName, onClose }: P
           </div>
        </div>
 
-       {/* MAIN CHAT AREA */}
+       {/* Backdrop when sidebar open on mobile */}
+       {isMobile && showSidebar && (
+         <div
+           onClick={() => setShowSidebar(false)}
+           style={{ position: 'absolute', inset: 0, zIndex: 19, background: 'rgba(0,0,0,0.35)' }}
+         />
+       )}
+
+       {/* MAIN CHAT AREA - always renders */}
        <div style={{
          flex: 1,
-         display: isMobile && showSidebar ? 'none' : 'flex',
+         display: 'flex',
          flexDirection: 'column',
          background: 'var(--bg-card)',
-         position: 'relative'
+         position: 'relative',
+         minWidth: 0
        }}>
           {activeThread ? (
             <>
