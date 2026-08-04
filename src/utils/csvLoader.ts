@@ -336,6 +336,7 @@ async function fetchAndCache(): Promise<{ rows: CustomerRow[]; customers: Custom
               hargaBersih: clean(r[29]),
               kurir: clean(r[30]),
               keterangan: clean(r[31]),
+              orderStatus: 'selesai',
               raw: r,
             };
 
@@ -726,4 +727,20 @@ export function resolveImageUrl(imgUrl?: string | null): string {
   
   // Plain filename (no path, no protocol): return as-is.
   return s;
+}
+
+export function getActivityStatus(dateStr?: string): 'overdue' | 'today' | 'future' | 'none' {
+  if (!dateStr) return 'none';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // Format as YYYY-MM-DD
+  const target = new Date(dateStr);
+  target.setHours(0, 0, 0, 0);
+  
+  if (isNaN(target.getTime())) return 'none';
+  
+  if (target.getTime() < today.getTime()) return 'overdue';
+  if (target.getTime() > today.getTime()) return 'future';
+  return 'today';
 }

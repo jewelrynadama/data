@@ -1,8 +1,8 @@
 // src/pages/CustomersPage.tsx
-import { useState, useMemo } from 'react';
-import { Search, Eye, Wand2 } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, Eye, Wand2, Clock } from 'lucide-react';
 import type { Customer, CustomerRow } from '../types';
-import { formatRupiah, parseDateToSortValue, getCustomerLabel } from '../utils/csvLoader';
+import { formatRupiah, parseDateToSortValue, getActivityStatus } from '../utils/csvLoader';
 import CustomerDrawer from '../components/CustomerDrawer';
 import CustomerFormModal from '../components/CustomerFormModal';
 import AIMagicPasteModal from '../components/AIMagicPasteModal';
@@ -44,7 +44,7 @@ const GRAD_COLORS = [
   'linear-gradient(135deg,#ec4899,#f43f5e)',
 ];
 
-export default function CustomersPage({
+export default React.memo(function CustomersPage({
   customers,
   searchQuery,
   onSearchChange,
@@ -66,6 +66,22 @@ export default function CustomersPage({
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMagicPaste, setShowMagicPaste] = useState(false);
   const [show360Customer, setShow360Customer] = useState<Customer | null>(null);
+
+  // Local search state for immediate UI updates while typing
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+
+  // Sync with external prop if it changes outside (e.g. from global command center)
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
+  // Debounce the call to App.tsx's state to prevent global re-renders
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      onSearchChange(localSearch);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [localSearch, onSearchChange]);
 
   // Sync selected customer with updated data from props
   const activeCustomer = useMemo(() => {
@@ -138,6 +154,8 @@ export default function CustomersPage({
     setPage(1);
   }
 
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+
   function SortIcon({ col }: { col: SortKey }) {
     if (sortKey !== col) return <span className="sort-arrow">↕</span>;
     return <span className="sort-arrow" style={{ color: '#1877F2' }}>{sortAsc ? '↑' : '↓'}</span>;
@@ -167,8 +185,8 @@ export default function CustomersPage({
             <div className="search-box" style={{ minWidth: 240 }}>
               <Search size={15} className="search-icon" />
               <input
-                value={searchQuery}
-                onChange={(e) => { onSearchChange(e.target.value); setPage(1); }}
+                value={localSearch}
+                onChange={(e) => { setLocalSearch(e.target.value); setPage(1); }}
                 placeholder="Search customers…"
               />
             </div>
@@ -179,6 +197,17 @@ export default function CustomersPage({
             <button className="btn btn-secondary" onClick={handleFindDuplicates} style={{ gap: 6 }}>
               🔍 Cari Duplikat
             </button>
+            <div style={{ flex: 1 }} />
+            <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+              <button 
+                onClick={() => setViewMode('list')}
+                style={{ padding: '6px 12px', border: 'none', background: viewMode === 'list' ? 'var(--accent)' : 'var(--bg-primary)', color: viewMode === 'list' ? '#fff' : 'var(--text-secondary)' }}
+              >List</button>
+              <button 
+                onClick={() => setViewMode('kanban')}
+                style={{ padding: '6px 12px', border: 'none', borderLeft: '1px solid var(--border)', background: viewMode === 'kanban' ? 'var(--accent)' : 'var(--bg-primary)', color: viewMode === 'kanban' ? '#fff' : 'var(--text-secondary)' }}
+              >Kanban</button>
+            </div>
             <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
               + Add Customer
             </button>
@@ -204,7 +233,47 @@ export default function CustomersPage({
             <span className="result-count">{filtered.length} customers</span>
           </div>
 
-          {/* Table - Desktop Only */}
+          {viewMode === 'kanban' ? (
+            <div style={{ display: 'flex', gap: 16, overflowX: 'auto', padding: '16px', minHeight: '500px', background: 'var(--bg-secondary)', borderRadius: 8 }}>
+              {['new', 'qualified', 'proposition', 'won', 'lost'].map(stage => {
+                const colCusts = sorted.filter(c => (c.crm?.stage || 'new') === stage);
+                return (
+                  <div key={stage} style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-primary)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                      <span style={{ textTransform: 'capitalize' }}>{stage}</span>
+                      <span style={{ background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: 12, fontSize: 12 }}>{colCusts.length}</span>
+                    </div>
+                    {colCusts.map(c => {
+                      const colorIdx = c.nama.charCodeAt(0) % GRAD_COLORS.length;
+                      return (
+                        <div key={c.id} onClick={() => onSelectCustomer(c)} style={{ background: 'var(--bg-primary)', padding: 16, borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: GRAD_COLORS[colorIdx], display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 12, fontWeight: 600 }}>
+                              {initials(c.nama)}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: 14 }}>{c.nama}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{c.city || 'No City'}</div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-green)' }}>
+                              {formatRupiah(c.totalSpend)}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                              {c.orderCount} Orders
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <>
+              {/* Table - Desktop Only */}
           <div className="customers-table-wrapper table-wrapper">
             <table className="data-table">
               <thead>
@@ -213,8 +282,6 @@ export default function CustomersPage({
                   <th className={sortKey === 'nama' ? 'sorted' : ''} onClick={() => handleSort('nama')}>
                     <div className="th-inner">Customer <SortIcon col="nama" /></div>
                   </th>
-                  <th>Instagram</th>
-                  <th>WhatsApp</th>
                   <th className={sortKey === 'city' ? 'sorted' : ''} onClick={() => handleSort('city')}>
                     <div className="th-inner">City <SortIcon col="city" /></div>
                   </th>
@@ -225,6 +292,7 @@ export default function CustomersPage({
                     <div className="th-inner">Total Spend <SortIcon col="totalSpend" /></div>
                   </th>
                   <th>Poin</th>
+                  <th>Activity</th>
                   <th className={sortKey === 'lastOrder' ? 'sorted' : ''} onClick={() => handleSort('lastOrder')}>
                     <div className="th-inner">Last Order <SortIcon col="lastOrder" /></div>
                   </th>
@@ -261,71 +329,32 @@ export default function CustomersPage({
                               {initials(c.nama)}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                              <span className="td-name" style={{ whiteSpace: 'nowrap' }}>{c.nama}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span className="td-name" style={{ whiteSpace: 'nowrap' }}>{c.nama}</span>
+                                {(() => {
+                                  const igHandle = extractInstagramUsername(c.instagram);
+                                  const igUrl = generateInstaLink(c.instagram, c.nama);
+                                  return igHandle ? (
+                                    <a href={igUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)', textDecoration: 'none' }} title={`@${igHandle}`}>📸</a>
+                                  ) : null;
+                                })()}
+                                {c.wa ? (
+                                  <a href={`https://wa.me/${c.wa.replace(/[^0-9]/g, '').replace(/^0/, '62')}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-green)', textDecoration: 'none' }} title={c.wa}>💬</a>
+                                ) : null}
+                              </div>
                               {(() => {
-                                const lbl = getCustomerLabel(c.totalSpend, c.orderCount, settings?.vipMinSpend, settings?.loyalMinOrders);
                                 const ltvLabel = c.totalSpend > 20000000 ? '🔥 High LTV' : c.totalSpend > 5000000 ? '📈 Med LTV' : null;
                                 return (
-                                  <>
-                                    {lbl === 'vip' && <span className="badge-customer-vip" style={{ fontSize: 9, padding: '1px 5px' }}>👑 VIP</span>}
-                                    {lbl === 'loyal' && <span className="badge-customer-loyal" style={{ fontSize: 9, padding: '1px 5px' }}>⭐ Loyal</span>}
-                                    {lbl === 'new' && <span className="badge-customer-new" style={{ fontSize: 9, padding: '1px 5px' }}>✨ Baru</span>}
-                                    {ltvLabel && <span className="badge-customer-loyal" style={{ fontSize: 9, padding: '1px 5px', marginLeft: 4, background: c.totalSpend > 20000000 ? '#ef4444' : '#f59e0b', color: 'white' }}>{ltvLabel}</span>}
-                                  </>
+                                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+                                    <span className="badge-customer-vip" style={{ fontSize: 9, padding: '1px 5px', background: calcLoyalty(c).tier === 'VIP' ? 'linear-gradient(135deg, #FFD700, #FDB931)' : 'var(--bg-secondary)', color: calcLoyalty(c).tier === 'VIP' ? 'black' : 'var(--text-primary)' }}>
+                                      {calcLoyalty(c).tierEmoji} {calcLoyalty(c).tier}
+                                    </span>
+                                    {ltvLabel && <span className="badge-customer-loyal" style={{ fontSize: 9, padding: '1px 5px', background: c.totalSpend > 20000000 ? '#ef4444' : '#f59e0b', color: 'white' }}>{ltvLabel}</span>}
+                                  </div>
                                 );
                               })()}
                             </div>
                           </div>
-                        </td>
-                        <td onClick={(e) => e.stopPropagation()}>
-                          {(() => {
-                            const igHandle = extractInstagramUsername(c.instagram);
-                            const igUrl = generateInstaLink(c.instagram, c.nama);
-                            return igHandle ? (
-                              <a
-                                href={igUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  color: 'var(--text-accent)',
-                                  textDecoration: 'none',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: 4,
-                                  fontSize: 12.5,
-                                  transition: 'color 0.15s',
-                                }}
-                                onMouseEnter={(e) => (e.currentTarget.style.color = '#c4b5fd')}
-                                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-accent)')}
-                              >
-                                @{igHandle}
-                                <span style={{ fontSize: 9, opacity: 0.5 }}>↗</span>
-                              </a>
-                            ) : '—';
-                          })()}
-                        </td>
-                        <td onClick={(e) => e.stopPropagation()}>
-                          {c.wa ? (
-                            <a
-                              href={`https://wa.me/${c.wa.replace(/[^0-9]/g, '').replace(/^0/, '62')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                color: 'var(--accent-green)',
-                                textDecoration: 'none',
-                                fontSize: 12.5,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                transition: 'opacity 0.15s',
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.75')}
-                              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
-                            >
-                              {c.wa}
-                              <span style={{ fontSize: 9, opacity: 0.5 }}>↗</span>
-                            </a>
-                          ) : '—'}
                         </td>
                         <td 
                           onClick={(e) => {
@@ -367,23 +396,43 @@ export default function CustomersPage({
                         </td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <span style={{ fontSize: 12 }}>💎</span>
-                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{calcLoyalty(c).points}</span>
+                            <span style={{ fontSize: 12 }}>🪙</span>
+                            <span style={{ fontWeight: 600 }}>{formatRupiah(calcLoyalty(c).points).replace('Rp ', '')}</span>
                           </div>
                         </td>
-                        <td>{c.lastOrder || '—'}</td>
+                        <td>
+                          {(() => {
+                            const actDate = c.crm?.nextActivityDate;
+                            const actType = c.crm?.nextActivityType;
+                            const actSummary = c.crm?.nextActivitySummary;
+                            if (!actDate && !actType && !actSummary) return <span style={{color: 'var(--text-muted)'}}>-</span>;
+                            
+                            const status = getActivityStatus(actDate);
+                            const color = status === 'overdue' ? '#dc2626' : status === 'today' ? '#d97706' : status === 'future' ? '#16a34a' : 'var(--text-muted)';
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color }}>
+                                <Clock size={14} />
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <span style={{ fontWeight: 600 }}>{actType || 'Activity'} - {actDate ? new Date(actDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'short'}) : 'No Date'}</span>
+                                  {actSummary && <span style={{ fontSize: 11, opacity: 0.8, maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{actSummary}</span>}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </td>
+                        <td>{c.lastOrder || '-'}</td>
                         <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'flex', gap: 4 }}>
                             <button
                               className="btn btn-secondary"
-                              style={{ padding: '4px 8px', background: 'linear-gradient(135deg,rgba(124,58,237,0.15),rgba(6,182,212,0.1))', border: '1px solid rgba(124,58,237,0.3)' }}
+                              style={{ padding: '4px', background: 'linear-gradient(135deg,rgba(124,58,237,0.15),rgba(6,182,212,0.1))', border: '1px solid rgba(124,58,237,0.3)', minWidth: 32 }}
                               onClick={() => setShow360Customer(c)}
                               title="Customer 360° View"
                             >
-                              🧬 360°
+                              🧬
                             </button>
-                            <button className="btn btn-secondary" style={{ padding: '4px 10px' }} onClick={() => onSelectCustomer(c)}>
-                              <Eye size={13} /> View
+                            <button className="btn btn-secondary" style={{ padding: '4px', minWidth: 32 }} onClick={() => onSelectCustomer(c)} title="View Customer Details">
+                              <Eye size={13} />
                             </button>
                           </div>
                         </td>
@@ -406,7 +455,7 @@ export default function CustomersPage({
             ) : (
               pageData.map((c, i) => {
                 const colorIdx = c.nama.charCodeAt(0) % GRAD_COLORS.length;
-                const lbl = getCustomerLabel(c.totalSpend, c.orderCount, settings?.vipMinSpend, settings?.loyalMinOrders);
+                const loyalty = calcLoyalty(c);
                 const igHandle = c.instagram
                   ? c.instagram.replace('https://www.instagram.com/', '').replace('https://www.instagram.com', '').replace(/^@/, '').split('\n')[0]
                   : null;
@@ -437,9 +486,23 @@ export default function CustomersPage({
                           {c.nama}
                         </div>
                         <div className="cust-card-meta">
-                          {lbl === 'vip' && <span className="badge-customer-vip" style={{ fontSize: 9, padding: '1px 5px' }}>👑 VIP</span>}
-                          {lbl === 'loyal' && <span className="badge-customer-loyal" style={{ fontSize: 9, padding: '1px 5px' }}>⭐ Loyal</span>}
-                          {lbl === 'new' && <span className="badge-customer-new" style={{ fontSize: 9, padding: '1px 5px' }}>✨ Baru</span>}
+                          <span className="badge-customer-vip" style={{ fontSize: 9, padding: '1px 5px', background: loyalty.tier === 'VIP' ? 'linear-gradient(135deg, #FFD700, #FDB931)' : 'var(--bg-secondary)', color: loyalty.tier === 'VIP' ? 'black' : 'var(--text-primary)' }}>
+                            {loyalty.tierEmoji} {loyalty.tier}
+                          </span>
+                          {(() => {
+                            const actDate = c.crm?.nextActivityDate;
+                            if (actDate || c.crm?.nextActivityType) {
+                              const status = getActivityStatus(actDate);
+                              const color = status === 'overdue' ? '#dc2626' : status === 'today' ? '#d97706' : status === 'future' ? '#16a34a' : 'var(--text-muted)';
+                              return (
+                                <span title={`${c.crm?.nextActivityType || 'Activity'}: ${c.crm?.nextActivitySummary || ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: `${color}15`, color, padding: '2px 6px', borderRadius: 12, fontSize: 10, fontWeight: 600, border: `1px solid ${color}30` }}>
+                                  <Clock size={10} />
+                                  {actDate ? new Date(actDate).toLocaleDateString('id-ID', {day: 'numeric', month: 'short'}) : 'No Date'}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                           {c.city && c.city !== '—' && (
                             <span className="cust-card-city">📍 {c.city}</span>
                           )}
@@ -495,6 +558,8 @@ export default function CustomersPage({
               })
             )}
           </div>
+            </>
+          )}
 
           {/* Pagination */}
           <div className="pagination-bar">
@@ -579,4 +644,4 @@ export default function CustomersPage({
       )}
     </>
   );
-}
+});

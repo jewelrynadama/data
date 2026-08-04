@@ -51,6 +51,7 @@ export interface Customer {
   orderCount: number;
   lastOrder: string;
   city: string;
+  crm?: CustomerCRMData;
 }
 
 export interface PendingOrder {
@@ -101,4 +102,12 @@ export interface CatalogItem {
   // Computed fields
   title: string;
   isReady: boolean;
+}
+
+export interface CustomerCRMData {
+  stage: 'new' | 'qualified' | 'proposition' | 'won' | 'lost';
+  priority: number; // 0, 1, 2, 3 stars
+  nextActivityDate?: string;
+  nextActivityType?: 'Call' | 'Email' | 'Meeting' | 'To-Do';
+  nextActivitySummary?: string;
 }

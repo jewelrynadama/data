@@ -1,5 +1,5 @@
 // src/utils/localStore.ts
-import type { Customer, CustomerRow } from '../types';
+import type { Customer, CustomerRow, CustomerCRMData } from '../types';
 import { formatAddress } from './addressHelper';
 import { cleanPrice, extractCity, formatWhatsApp } from './csvLoader';
 
@@ -13,6 +13,7 @@ export interface LocalStore {
   editedOrders: Record<string, Partial<CustomerRow>>;  // id → patch
   deletedOrderIds: string[];
   inventoryLogs: any[];              // global inventory logs to sync
+  customerCRMState?: Record<string, CustomerCRMData>; // id → CRM state
 }
 
 function emptyStore(): LocalStore {
@@ -24,6 +25,7 @@ function emptyStore(): LocalStore {
     editedOrders: {},
     deletedOrderIds: [],
     inventoryLogs: [],
+    customerCRMState: {},
   };
 }
 
@@ -60,6 +62,17 @@ export function deleteCustomer(id: string): void {
   const s = readStore();
   s.deletedCustomerIds = [...new Set([...s.deletedCustomerIds, id])];
   s.newCustomers = s.newCustomers.filter((c) => c.id !== id);
+  if (s.customerCRMState) delete s.customerCRMState[id];
+  writeStore(s);
+}
+
+export function saveCustomerCRMState(id: string, patch: Partial<CustomerCRMData>): void {
+  const s = readStore();
+  if (!s.customerCRMState) s.customerCRMState = {};
+  
+  const existing = s.customerCRMState[id] || { stage: 'new', priority: 0 };
+  s.customerCRMState[id] = { ...existing, ...patch } as CustomerCRMData;
+  
   writeStore(s);
 }
 
@@ -221,6 +234,7 @@ export function mergeData(
       if (o.wa) o.wa = formatWhatsApp(o.wa);
       return o;
     });
+    c.crm = s.customerCRMState?.[c.id] || { stage: 'new', priority: 0 };
     return c;
   });
 

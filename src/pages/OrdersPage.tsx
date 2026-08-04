@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Printer, Edit2, Trash2, X, Package, MapPin, CreditCard, Camera } from 'lucide-react';
 import type { CustomerRow, Customer } from '../types';
@@ -287,7 +287,7 @@ function DriveImageCard({
   );
 }
 
-export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrder, onEditOrder, onDeleteOrder, onBatchEditOrders, onBatchDeleteOrders, customers }: Props) {
+export default React.memo(function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrder, onEditOrder, onDeleteOrder, onBatchEditOrders, onBatchDeleteOrders, customers }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('tanggalOrder');
   const [sortAsc, setSortAsc] = useState(false);
   const [page, setPage] = useState(1);
@@ -296,6 +296,22 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
   const [editingOrder, setEditingOrder] = useState<CustomerRow | null>(null);
   const [selectedOrderView, setSelectedOrderView] = useState<CustomerRow | null>(null);
   const [lightbox, setLightbox] = useState<{ src: string; label: string } | null>(null);
+
+  // Local search state for immediate UI updates while typing
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+
+  // Sync with external prop if it changes outside (e.g. from global command center)
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
+  // Debounce the call to App.tsx's state to prevent global re-renders
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      onSearchChange(localSearch);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [localSearch, onSearchChange]);
 
   // Find all rows of the same transaction
   const relatedOrderRows = useMemo(() => {
@@ -460,7 +476,7 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
   const statusFreq = useMemo(() => {
     const map: Record<string, number> = {};
     orderRows.forEach((r) => {
-      const s = r.orderStatus || 'pending';
+      const s = r.orderStatus || 'selesai';
       map[s] = (map[s] || 0) + 1;
     });
     return map;
@@ -521,7 +537,7 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
       if (filterColor && r.color !== filterColor) return false;
       if (filterGrade && r.grade !== filterGrade) return false;
       if (filterPayment && r.paymentVia !== filterPayment) return false;
-      if (filterStatus && (r.orderStatus || 'pending') !== filterStatus) return false;
+      if (filterStatus && (r.orderStatus || 'selesai') !== filterStatus) return false;
 
       return true;
     });
@@ -578,8 +594,8 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
         av = parseDateToSortValue(av as string);
         bv = parseDateToSortValue(bv as string);
       } else if (sortKey === 'orderStatus') {
-        av = (a.orderStatus || 'pending').toLowerCase();
-        bv = (b.orderStatus || 'pending').toLowerCase();
+        av = (a.orderStatus || 'selesai').toLowerCase();
+        bv = (b.orderStatus || 'selesai').toLowerCase();
       } else if (sortKey === 'jenis') {
         av = typeFreq[a.jenis] || 0;
         bv = typeFreq[b.jenis] || 0;
@@ -734,8 +750,8 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
           <div className="search-box" style={{ flex: 1, minWidth: 0, maxWidth: 320 }}>
             <Search size={15} className="search-icon" />
             <input
-              value={searchQuery}
-              onChange={(e) => { onSearchChange(e.target.value); setPage(1); }}
+              value={localSearch}
+              onChange={(e) => { setLocalSearch(e.target.value); setPage(1); }}
               placeholder="Cari order, customer, produk…"
             />
           </div>
@@ -959,10 +975,10 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
                     <td>{r.tanggalOrder || '—'}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {(() => {
-                        const statusCfg = STATUS_CONFIG[r.orderStatus || 'pending'];
+                        const statusCfg = STATUS_CONFIG[r.orderStatus || 'selesai'];
                         return (
                           <select
-                            value={r.orderStatus || 'pending'}
+                            value={r.orderStatus || 'selesai'}
                             onChange={(e) => {
                               onEditOrder(r.id, { orderStatus: e.target.value as any });
                             }}
@@ -1077,7 +1093,7 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
             </div>
           ) : (
             pageData.map((r, i) => {
-              const statusCfg = STATUS_CONFIG[r.orderStatus || 'pending'];
+              const statusCfg = STATUS_CONFIG[r.orderStatus || 'selesai'];
               return (
                 <div 
                   key={r.id} 
@@ -1093,7 +1109,7 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
                   <div className="order-card-chips">
                     {/* Status */}
                     <select
-                      value={r.orderStatus || 'pending'}
+                      value={r.orderStatus || 'selesai'}
                       onChange={(e) => onEditOrder(r.id, { orderStatus: e.target.value as any })}
                       onClick={(e) => e.stopPropagation()}
                       style={{
@@ -1272,7 +1288,7 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
                     Detail Pesanan
                   </span>
                   {(() => {
-                    const statusCfg = STATUS_CONFIG[selectedOrderView.orderStatus || 'pending'];
+                    const statusCfg = STATUS_CONFIG[selectedOrderView.orderStatus || 'selesai'];
                     return (
                       <span 
                         style={{ 
@@ -1421,7 +1437,12 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
                           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
                             {(() => {
                               const isNumericCourier = selectedOrderView.kurir ? /^\\d+$/.test(selectedOrderView.kurir.trim().replace(/[\\s\\.\\,\\-]/g, '')) : false;
-                              return selectedOrderView.resi || (isNumericCourier ? selectedOrderView.kurir : '—');
+                              const finalResi = selectedOrderView.resi || (isNumericCourier ? selectedOrderView.kurir : '—');
+                              return finalResi !== '—' ? (
+                                <a href={`https://cekresi.com/?noresi=${finalResi}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-blue)', textDecoration: 'underline' }}>
+                                  {finalResi}
+                                </a>
+                              ) : '—';
                             })()}
                           </span>
                         </div>
@@ -1985,4 +2006,4 @@ export default function OrdersPage({ rows, searchQuery, onSearchChange, onAddOrd
       )}
     </div>
   );
-}
+});

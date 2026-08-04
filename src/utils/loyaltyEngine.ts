@@ -1,7 +1,7 @@
 // src/utils/loyaltyEngine.ts
 import type { Customer } from '../types';
 
-export type LoyaltyTier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
+export type LoyaltyTier = 'Bronze' | 'Silver' | 'Gold' | 'VIP';
 
 export interface LoyaltyInfo {
   points: number;
@@ -17,10 +17,10 @@ export interface LoyaltyInfo {
 const POINTS_PER_RUPIAH = 1 / 10000;
 
 const TIERS: { tier: LoyaltyTier; minPoints: number; color: string; emoji: string }[] = [
-  { tier: 'Bronze',   minPoints: 0,     color: '#cd7f32', emoji: '🥉' },
-  { tier: 'Silver',   minPoints: 500,   color: '#94a3b8', emoji: '🥈' },
-  { tier: 'Gold',     minPoints: 2000,  color: '#f59e0b', emoji: '🥇' },
-  { tier: 'Platinum', minPoints: 5000,  color: '#7c3aed', emoji: '💎' },
+  { tier: 'Bronze', minPoints: 0,    color: '#cd7f32', emoji: '🥉' },
+  { tier: 'Silver', minPoints: 200,  color: '#94a3b8', emoji: '🥈' },
+  { tier: 'Gold',   minPoints: 500,  color: '#f59e0b', emoji: '🥇' },
+  { tier: 'VIP',    minPoints: 1000, color: '#7c3aed', emoji: '💎' },
 ];
 
 export function calcLoyalty(customer: Customer): LoyaltyInfo {
@@ -60,7 +60,7 @@ export function calcLoyalty(customer: Customer): LoyaltyInfo {
 
 export function getLoyaltyStats(customers: Customer[]) {
   const tierCount: Record<LoyaltyTier, number> = {
-    Bronze: 0, Silver: 0, Gold: 0, Platinum: 0,
+    Bronze: 0, Silver: 0, Gold: 0, VIP: 0,
   };
   let totalPoints = 0;
 

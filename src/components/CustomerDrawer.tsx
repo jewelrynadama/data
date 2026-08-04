@@ -1,7 +1,8 @@
 // src/components/CustomerDrawer.tsx
 import { useState } from 'react';
-import { X, Instagram, Phone, MapPin, Calendar, Package, CreditCard, Edit2, Trash2, Plus, Copy, Check, Printer } from 'lucide-react';
-import type { Customer, CustomerRow } from '../types';
+import { X, Instagram, Phone, MapPin, Calendar, Package, CreditCard, Edit2, Trash2, Plus, Copy, Check, Printer, Star, MessageCircle, Clock } from 'lucide-react';
+import type { Customer, CustomerRow, CustomerCRMData } from '../types';
+import { saveCustomerCRMState } from '../utils/localStore';
 import { formatRupiah, getJenisBadgeClass, getCustomerLabel, resolveImageUrl } from '../utils/csvLoader';
 import { printInvoice, printCustomerStatement } from '../utils/printHelper';
 import { formatBirthday } from '../utils/birthday';
@@ -12,6 +13,8 @@ import { calcLoyalty } from '../utils/loyaltyEngine';
 import { extractInstagramUsername, generateInstaLink } from '../utils/socialIntelligenceEngine';
 import { generateUpsellRecommendations, generateSmartCopy } from '../utils/aiEngines';
 import { Wand2 } from 'lucide-react';
+import ChatHistoryViewer from './ChatHistoryViewer';
+
 const isGooglePhotos = (url?: string | null) => {
   if (!url) return false;
   return url.includes('photos.google.com') || url.includes('photos.app.goo.gl');
@@ -53,6 +56,36 @@ function getWhatsAppShareUrl(customer: Customer, order: CustomerRow, settings?: 
     .replace(/{storeName}/g, storeName);
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
+function getWAFollowUpTemplate(customer: Customer, stage: string) {
+  if (!customer.wa) return null;
+  const phone = customer.wa.replace(/[^0-9]/g, '').replace(/^0/, '62');
+  if (!phone) return null;
+
+  const name = customer.nama;
+  let text = '';
+  switch (stage) {
+    case 'new':
+      text = `Halo Kak ${name}, terima kasih sudah menghubungi PearlCRM. Ada koleksi mutiara yang sedang dicari?`;
+      break;
+    case 'qualified':
+      text = `Halo Kak ${name}, mutiaranya sudah kami siapkan nih, apakah mau lanjut proses?`;
+      break;
+    case 'proposition':
+      text = `Halo Kak ${name}, ini penawaran untuk mutiara yang kemarin ya. Apakah ada yang kurang pas?`;
+      break;
+    case 'won':
+      text = `Halo Kak ${name}, terima kasih sudah berbelanja. Paket akan segera kami proses dan kirim! 💎`;
+      break;
+    case 'lost':
+      text = `Halo Kak ${name}, maaf jika belum berjodoh kali ini. Jika butuh mutiara lagi, jangan ragu hubungi kami ya!`;
+      break;
+    default:
+      text = `Halo Kak ${name}, ada yang bisa kami bantu hari ini?`;
+      break;
+  }
+  return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
 
 function getWhatsAppBirthdayUrl(customer: Customer, settings?: any) {
@@ -130,6 +163,14 @@ export default function CustomerDrawer({
   const favType  = Object.entries(typeCount).sort((a,b)=>b[1]-a[1])[0]?.[0] ?? '—';
   const favPearl = Object.entries(pearlCount).sort((a,b)=>b[1]-a[1])[0]?.[0] ?? '—';
 
+  const [localCrm, setLocalCrm] = useState<Partial<CustomerCRMData>>(customer.crm || { stage: 'new', priority: 0 });
+
+  function updateCrm(patch: Partial<any>) {
+    const updated = { ...localCrm, ...patch };
+    setLocalCrm(updated);
+    saveCustomerCRMState(customer.id, patch);
+  }
+
   function handleSaveCustomer(data: Partial<Customer> & { nama: string }) {
     onEditCustomer(customer.id, data);
     setShowEditCustomer(false);
@@ -161,9 +202,49 @@ export default function CustomerDrawer({
 
   return (
     <>
-      <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="customer-drawer">
-          {/* Header */}
+      <div className="modal-overlay odoo-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="odoo-modal-container" onClick={(e) => e.stopPropagation()}>
+          <div className="odoo-form-pane">
+            <div className="odoo-stages-bar">
+              <div className="odoo-priority-stars">
+                {[1, 2, 3].map((star) => (
+                  <Star
+                    key={star}
+                    size={16}
+                    className={`star ${(localCrm.priority || 0) >= star ? 'active' : ''}`}
+                    fill={(localCrm.priority || 0) >= star ? '#fbbf24' : 'none'}
+                    onClick={() => updateCrm({ priority: localCrm.priority === star ? 0 : star })}
+                  />
+                ))}
+              </div>
+              <div style={{ flex: 1 }} />
+              {['new', 'qualified', 'proposition', 'won', 'lost'].map((s) => (
+                <div
+                  key={s}
+                  className={`odoo-stage ${localCrm.stage === s ? 'active' : ''}`}
+                  onClick={() => updateCrm({ stage: s })}
+                >
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </div>
+              ))}
+            </div>
+            {/* Action Bar (1-Click Follow Up) */}
+            <div style={{ display: 'flex', padding: '10px 16px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>
+              {customer.wa ? (
+                <a 
+                  href={getWAFollowUpTemplate(customer, localCrm.stage || 'new') || '#'}
+                  target="_blank" rel="noopener noreferrer"
+                  className="btn btn-primary"
+                  style={{ background: '#25D366', border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <MessageCircle size={14} /> Kirim WA (Follow Up)
+                </a>
+              ) : (
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Nomor WA tidak tersedia</span>
+              )}
+            </div>
+            <div className="customer-drawer" style={{ width: '100%', height: 'auto', border: 'none', background: 'transparent' }}>
+              {/* Header */}
           <div className="drawer-header">
             <span className="drawer-title">Customer Profile</span>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -467,8 +548,8 @@ export default function CustomerDrawer({
                         {/* Cetak / Edit / Delete order */}
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button
-                            className="icon-btn" style={{ width: 26, height: 26, color: 'var(--text-accent)' }}
-                            title="Cetak Nota Order" onClick={() => printInvoice(customer, o, settings)}
+                            className="icon-btn" style={{ width: 26, height: 26, color: 'var(--accent-purple)' }}
+                            title="Cetak Invoice Order" onClick={() => printInvoice(customer, o, settings)}
                           ><Printer size={11} /></button>
                           <button
                             className="icon-btn" style={{ width:26, height:26 }}
@@ -499,7 +580,9 @@ export default function CustomerDrawer({
 
                           {o.resi && (
                             <div style={{ fontSize: 11, marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-accent)', flexWrap: 'wrap' }}>
-                              <span>Resi: <strong>{o.resi}</strong> {o.kurir && `(${o.kurir})`}</span>
+                              <span>
+                                Resi: <a href={`https://cekresi.com/?noresi=${o.resi}`} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 'bold', color: 'var(--accent-blue)', textDecoration: 'underline' }}>{o.resi}</a> {o.kurir && `(${o.kurir})`}
+                              </span>
                               {customer.wa && (
                                 <a
                                   href={getWhatsAppShareUrl(customer, o, settings) || undefined}
@@ -624,6 +707,49 @@ export default function CustomerDrawer({
           </div>
         </div>
       </div>
+      
+      <div className="odoo-chatter-pane">
+        <div style={{ padding: 16, background: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <Clock size={16} color="var(--text-secondary)" />
+            <h4 style={{ margin: 0, fontSize: 14, color: 'var(--text-primary)' }}>Jadwal Follow-Up (Next Activity)</h4>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <input 
+              type="date" 
+              className="input" 
+              style={{ flex: 1, padding: '6px 10px', fontSize: 13 }} 
+              value={localCrm.nextActivityDate || ''} 
+              onChange={(e) => updateCrm({ nextActivityDate: e.target.value })} 
+            />
+            <select 
+              className="input" 
+              style={{ flex: 1, padding: '6px 10px', fontSize: 13 }} 
+              value={localCrm.nextActivityType || ''} 
+              onChange={(e) => updateCrm({ nextActivityType: e.target.value as any })}
+            >
+              <option value="">- Tipe -</option>
+              <option value="Call">📞 Telepon</option>
+              <option value="Email">📧 Email</option>
+              <option value="To-Do">✅ To-Do</option>
+            </select>
+          </div>
+          <input 
+            type="text" 
+            className="input" 
+            placeholder="Ringkasan (Misal: Tawarkan bundling kalung)" 
+            style={{ width: '100%', padding: '6px 10px', fontSize: 13 }} 
+            value={localCrm.nextActivitySummary || ''} 
+            onChange={(e) => updateCrm({ nextActivitySummary: e.target.value })} 
+          />
+        </div>
+        <ChatHistoryViewer 
+          waNumber={customer.wa} 
+          customerName={customer.nama}
+        />
+      </div>
+    </div>
+  </div>
 
       {/* Edit Customer modal */}
       {showEditCustomer && (

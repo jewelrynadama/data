@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
-import { RefreshCw, Bell, Sun, Moon, LogOut, Menu } from 'lucide-react';
+import { RefreshCw, Bell, Menu, Grid, Search } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import PearlAIChatWidget from './components/PearlAIChatWidget';
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -8,7 +8,6 @@ const OrdersPage = lazy(() => import('./pages/OrdersPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const ExportPage = lazy(() => import('./pages/ExportPage'));
 const MarketingPage = lazy(() => import('./pages/MarketingPage'));
-const InboxPage = lazy(() => import('./pages/InboxPage'));
 const BirthdayPage = lazy(() => import('./pages/BirthdayPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const InvoicePage = lazy(() => import('./pages/InvoicePage'));
@@ -27,7 +26,7 @@ import { loadCustomerData, extractCity, formatWhatsApp, loadCatalogData } from '
 import { formatAddress } from './utils/addressHelper';
 import type { Customer, CustomerRow, PendingOrder, CatalogItem } from './types';
 import './index.css';
-import { collection, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { getBirthdayAlerts } from './utils/birthday';
 import {
   saveNewCustomer,
@@ -96,13 +95,12 @@ const DEFAULT_SETTINGS: StoreSettings = {
   printCustomHeight: '297',
 };
 
-type Page = 'dashboard' | 'customers' | 'orders' | 'inbox' | 'marketing' | 'social' | 'analytics' | 'rfm-analytics' | 'finance-analytics' | 'export' | 'settings' | 'birthday' | 'reports' | 'invoice' | 'inventory' | 'kanban' | 'catalog' | 'ai-trends' | 'whatsapp-importer' | 'drive-photo-linker' | 'sales-target' | 'activity-log' | 'ig-analyzer' | 'command-center' | 'affinity-matrix' | 'profit-optimizer' | 'demand-forecast' | 'bundle-recommender' | 'chat-history';
+type Page = 'dashboard' | 'customers' | 'orders' | 'marketing' | 'social' | 'analytics' | 'rfm-analytics' | 'finance-analytics' | 'export' | 'settings' | 'birthday' | 'reports' | 'invoice' | 'inventory' | 'kanban' | 'catalog' | 'ai-trends' | 'whatsapp-importer' | 'drive-photo-linker' | 'sales-target' | 'activity-log' | 'ig-analyzer' | 'command-center' | 'affinity-matrix' | 'profit-optimizer' | 'demand-forecast' | 'bundle-recommender' | 'chat-history';
 
 const PAGE_TITLES: Record<Page, { title: string; subtitle: string }> = {
   dashboard:  { title: 'Overview',           subtitle: 'Key metrics and insights at a glance' },
   customers:  { title: 'Customers',          subtitle: 'Manage and explore customer profiles' },
   orders:     { title: 'All Orders',         subtitle: 'View and filter every transaction' },
-  inbox:      { title: 'Order Inbox',        subtitle: 'Review and confirm incoming orders' },
   kanban:     { title: 'Kanban Tracker',     subtitle: 'Visual board status pesanan' },
   marketing:  { title: 'Marketing Hub',      subtitle: 'Campaigns, Flash Sales, and Re-engagement' },
   social:     { title: 'Kalender Momen',     subtitle: 'Pantau momen spesial dan ulang tahun pelanggan' },
@@ -217,6 +215,7 @@ export default function App() {
     editedOrders: {},
     deletedOrderIds: [],
     inventoryLogs: [],
+    customerCRMState: {},
   });
 
   const storeDataRef = useRef(storeData);
@@ -230,7 +229,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
+  // pendingOrders removed
   
 
   // CommandCenter states & listeners
@@ -433,7 +432,7 @@ export default function App() {
         showToast('📥 Orderan Baru Masuk!', 'info');
       }
       prevPendingCountRef.current = list.length;
-      setPendingOrders(list);
+      // setPendingOrders(list);
     }, (err) => {
       console.error('Pending orders subscription error:', err);
     });
@@ -700,73 +699,6 @@ export default function App() {
     }
   }, [user, storeData]);
 
-  const handleAcceptPendingOrder = useCallback(async (pending: PendingOrder) => {
-    try {
-      const orderId = `order-${Date.now()}`;
-
-      const newOrder: CustomerRow = {
-        id: orderId,
-        namaInstagram: pending.customerName,
-        instagram: pending.instagram || '',
-        tanggalOrder: pending.orderDate,
-        tanggalUlangTahun: '',
-        namaPengiriman: pending.customerName,
-        alamat: pending.alamat || '',
-        wa: pending.wa || '',
-        kode: 'WEB-INBOX',
-        jenis: 'Pearl',
-        gambar: '',
-        rangka: 'None',
-        gramasiRangka: '',
-        kodeType: '',
-        type: pending.productName,
-        weight: '',
-        size: '',
-        kodeShape: '',
-        shape: '',
-        color: '',
-        grade: '',
-        stone: '',
-        stoneWeight: '',
-        amount: pending.totalPrice.toString(),
-        terbilang: '',
-        qty: pending.qty.toString(),
-        paymentVia: pending.source === 'shopee' ? 'Shopee' : 'Website',
-        totalBayar: pending.totalPrice.toString(),
-        ongkir: '0',
-        hargaBersih: pending.totalPrice.toString(),
-        kurir: 'JNE/J&T',
-        keterangan: `Sync from ${pending.source}. Original ID: ${pending.id}`,
-        resi: '',
-        orderStatus: 'pending',
-        raw: [],
-      };
-
-      await handleAddOrder(newOrder);
-
-      if (db) {
-        await deleteDoc(doc(db, 'pending_orders', pending.id));
-      }
-
-      showToast(`Order dari ${pending.customerName} berhasil diterima!`, 'success');
-    } catch (error: any) {
-      console.error('Failed to accept pending order:', error);
-      showToast(`Gagal menerima order: ${error.message}`, 'error');
-    }
-  }, [handleAddOrder, showToast]);
-
-  const handleRejectPendingOrder = useCallback(async (pending: PendingOrder) => {
-    try {
-      if (db) {
-        await deleteDoc(doc(db, 'pending_orders', pending.id));
-      }
-      showToast(`Order dari ${pending.customerName} dihapus dari Inbox.`, 'info');
-    } catch (error: any) {
-      console.error('Failed to reject pending order:', error);
-      showToast(`Gagal menghapus order: ${error.message}`, 'error');
-    }
-  }, [showToast]);
-
   const birthdayAlerts = useMemo(() => {
     return getBirthdayAlerts(customers);
   }, [customers]);
@@ -844,211 +776,127 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell" style={{ overflow: 'hidden', height: '100vh', display: 'flex' }}>
+    <div className="app-shell" style={{ overflow: 'hidden', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <div className="ambient-glow g-1"></div>
       <div className="ambient-glow g-2"></div>
-      {/* Mobile Sidebar Overlay */}
       <div 
         className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`}
         onClick={() => setSidebarOpen(false)}
       />
-      <Sidebar
-        page={page}
-        onNavigate={(p) => {
-          handleNavigate(p);
-          setSidebarOpen(false);
-        }}
-        totalCustomers={customers.length}
-        totalOrders={rows.filter((r) => r.jenis).length}
-        onLogout={handleLogout}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
-        settings={settings}
-        unreadCount={unreadCount}
-        onOpenNotifications={() => {
-          setNotifOpen(true);
-          setSidebarOpen(false);
-        }}
-        pendingCount={pendingOrders.length}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
 
-      <div className="main-content" style={{ overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Top Header */}
-        <div className="top-header">
-          <div className="header-left">
+      <header className="odoo-topbar" style={{ 
+        height: 'var(--header-height)', 
+        background: 'var(--bg-topbar)', 
+        display: 'flex', 
+        alignItems: 'center', 
+        padding: '0 16px',
+        color: 'var(--text-topbar)',
+        justifyContent: 'space-between',
+        flexShrink: 0,
+        zIndex: 1000
+      }}>
+         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <button 
-              className="icon-btn mobile-menu-btn" 
+              className="mobile-menu-btn" 
               onClick={() => setSidebarOpen(true)}
+              style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <Menu size={20} />
             </button>
-            <div>
-              <div className="page-title">{title}</div>
-              <div className="page-subtitle">{subtitle}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+               <Grid size={18} />
+               <span style={{ fontWeight: 600, fontSize: '15px', letterSpacing: '0.2px' }}>{settings.appName || 'CRM'}</span>
             </div>
-          </div>
-
-          <div className="header-right">
-            {/* Global search removed as pages have their own search bars */}
-            <button
-              className="btn btn-secondary"
-              onClick={() => loadData(true)}
-              title="Refresh data dari spreadsheet"
-              disabled={refreshing}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px', fontWeight: 600 }}
-            >
-              <RefreshCw size={14} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} />
-              {refreshing ? 'Sinkronisasi...' : 'Sync Data'}
-            </button>
-
-            {/* Mobile Header Actions (Theme Toggle & Logout) */}
-            <div className="mobile-header-actions" style={{ display: 'flex', gap: 6 }}>
-              <button
-                className="icon-btn"
-                onClick={handleToggleTheme}
-                title={theme === 'dark' ? 'Ubah ke Mode Terang' : 'Ubah ke Mode Gelap'}
-              >
-                {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-              </button>
-              <button
-                className="icon-btn"
-                onClick={handleLogout}
-                title="Keluar / Logout"
-                style={{ color: 'var(--accent-red)' }}
-              >
-                <LogOut size={15} />
-              </button>
+         </div>
+         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ 
+              background: 'rgba(255,255,255,0.15)', 
+              borderRadius: '4px', 
+              padding: '4px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              minWidth: '200px'
+            }} className="hide-on-mobile">
+              <Search size={14} color="rgba(255,255,255,0.8)" />
+              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)' }}>Search...</span>
             </div>
 
             <button
-              className="icon-btn header-bell-btn"
-              title={unreadCount > 0 ? `${unreadCount} notifikasi belum dibaca` : 'Notifikasi'}
               onClick={() => setNotifOpen(true)}
-              style={{ position: 'relative' }}
+              style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'center', padding: '4px' }}
+              title={unreadCount > 0 ? `${unreadCount} notifications` : 'Notifications'}
             >
-              <Bell size={15} />
+              <Bell size={16} />
               {unreadCount > 0 && (
                 <span style={{
-                  position: 'absolute',
-                  top: 1,
-                  right: 1,
-                  minWidth: 14,
-                  height: 14,
-                  borderRadius: 10,
-                  background: '#ef4444',
-                  color: 'white',
-                  fontSize: 9,
-                  fontWeight: 800,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0 2px',
-                  fontFamily: 'Inter, sans-serif',
-                  pointerEvents: 'none',
+                  position: 'absolute', top: -2, right: -4, background: '#ef4444', color: 'white', fontSize: '9px', fontWeight: 800, padding: '1px 4px', borderRadius: '10px'
                 }}>
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
             </button>
- 
+
             <div style={{ position: 'relative' }}>
               <div
-                className="header-avatar"
                 style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '50%',
-                  background: '#1877F2',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: 'white',
-                  cursor: 'pointer',
+                  width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '12px', fontWeight: 700, cursor: 'pointer'
                 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowAdminDropdown(!showAdminDropdown);
-                }}
+                onClick={(e) => { e.stopPropagation(); setShowAdminDropdown(!showAdminDropdown); }}
               >
                 A
               </div>
               {showAdminDropdown && (
                 <div style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: 40,
-                  width: 180,
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--border-radius-sm)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  zIndex: 1000,
-                  padding: '6px 0',
-                  animation: 'fadeIn 0.15s ease-out',
+                  position: 'absolute', right: 0, top: 36, width: 180, background: 'var(--bg-card)',
+                  border: '1px solid var(--border)', borderRadius: 'var(--border-radius)', boxShadow: 'var(--shadow-md)',
+                  zIndex: 1000, padding: '6px 0', color: 'var(--text-primary)'
                 }}>
-                  <div style={{
-                    padding: '8px 14px',
-                    fontSize: 11,
-                    color: 'var(--text-muted)',
-                    borderBottom: '1px solid var(--border)',
-                    marginBottom: 4,
-                  }}>
+                  <div style={{ padding: '8px 14px', fontSize: '11px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
                     Store: <strong>{settings.storeName}</strong>
                   </div>
-                  <button
-                    onClick={() => {
-                      handleNavigate('settings');
-                      setShowAdminDropdown(false);
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px 14px',
-                      fontSize: 12.5,
-                      textAlign: 'left',
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--text-primary)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-card-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                  >
-                    ⚙️ Pengaturan Toko
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    style={{
-                      width: '100%',
-                      padding: '8px 14px',
-                      fontSize: 12.5,
-                      textAlign: 'left',
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--accent-red)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-card-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                  >
-                    🚪 Keluar / Logout
-                  </button>
+                  <button onClick={() => { handleNavigate('settings'); setShowAdminDropdown(false); }} style={{ width: '100%', padding: '8px 14px', fontSize: '13px', textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>Settings</button>
+                  <button onClick={handleLogout} style={{ width: '100%', padding: '8px 14px', fontSize: '13px', textAlign: 'left', background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer' }}>Logout</button>
                 </div>
               )}
             </div>
-          </div>
-        </div>
+         </div>
+      </header>
 
-        {/* Loading state */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <Sidebar
+          page={page}
+          onNavigate={(p) => { handleNavigate(p); setSidebarOpen(false); }}
+          totalCustomers={customers.length}
+          totalOrders={rows.filter((r) => r.jenis).length}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
+        <div className="main-content" style={{ overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <div className="top-header" style={{ padding: '8px 16px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', minHeight: '50px' }}>
+            <div className="header-left">
+              <div>
+                <div className="page-title" style={{ fontSize: '18px', color: 'var(--text-primary)' }}>{title}</div>
+                {subtitle && <div className="page-subtitle" style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{subtitle}</div>}
+              </div>
+            </div>
+
+            <div className="header-right">
+              <button
+                className="btn btn-secondary"
+                onClick={() => loadData(true)}
+                title="Refresh data"
+                disabled={refreshing}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '6px 12px' }}
+              >
+                <RefreshCw size={14} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} />
+                {refreshing ? 'Syncing...' : 'Sync'}
+              </button>
+            </div>
+          </div>
+
         {loading && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
             <div style={{
@@ -1061,7 +909,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Error state */}
         {!loading && error && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div className="empty-state">
@@ -1092,7 +939,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Pages */}
         {!loading && !error && (
           <div className="pages-container" style={{ overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>
           <ErrorBoundary pageName="Halaman ini">
@@ -1152,15 +998,7 @@ export default function App() {
             {page === 'marketing' && (
               <MarketingPage customers={customers} rows={rows} settings={settings} />
             )}
-            {page === 'inbox' && (
-              <InboxPage
-                pendingOrders={pendingOrders}
-                customers={customers}
-                onAccept={handleAcceptPendingOrder}
-                onReject={handleRejectPendingOrder}
-              />
-            )}
-            {page === 'kanban' && (
+{page === 'kanban' && (
               <KanbanPage rows={rows} customers={customers} settings={settings} onEditOrder={handleEditOrder} />
             )}
             {page === 'social' && (
@@ -1250,7 +1088,8 @@ export default function App() {
           </ErrorBoundary>
           </div>
         )}
-      </div>
+      </div> {/* end main-content */}
+    </div> {/* end body wrapper */}
 
       {/* Smart Notification Center */}
       <NotificationCenter
