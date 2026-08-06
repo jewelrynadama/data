@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { io, Socket } from 'socket.io-client';
-import { Send, User, Search, Loader2, RefreshCw, Paperclip, X, Download } from 'lucide-react';
+import { Send, User, Search, Loader2, RefreshCw, Paperclip, X, Download, Trash2, MoreVertical } from 'lucide-react';
 
 interface WAChat {
   id: string;
@@ -204,6 +204,35 @@ export default function WhatsAppInboxPage() {
     e.target.value = ''; // Reset input
   };
 
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+
+  const handleClearChat = (chatId: string) => {
+    if (!socket || !chatId) return;
+    if (confirm('Apakah Anda yakin ingin mengosongkan (menghapus semua) pesan di chat ini?')) {
+      socket.emit('clear_chat', { chatId }, (res: any) => {
+        if (res.success) {
+          setMessages([]);
+          alert('Chat berhasil dikosongkan.');
+        } else {
+          alert('Gagal mengosongkan chat: ' + res.error);
+        }
+      });
+    }
+  };
+
+  const handleDeleteMessage = (chatId: string, messageId: string) => {
+    if (!socket || !chatId || !messageId) return;
+    if (confirm('Apakah Anda yakin ingin menghapus pesan ini?')) {
+      socket.emit('delete_message', { chatId, messageId, onlyLocal: false }, (res: any) => {
+        if (res.success) {
+          setMessages(prev => prev.filter(m => m.id !== messageId));
+        } else {
+          alert('Gagal menghapus pesan: ' + res.error);
+        }
+      });
+    }
+  };
+
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -331,12 +360,21 @@ export default function WhatsAppInboxPage() {
               <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <User size={24} color="var(--text-secondary)" />
               </div>
-              <div>
+              <div style={{ flex: 1 }}>
                 <h3 style={{ fontSize: 16, margin: 0, fontWeight: 600 }}>{selectedChat.name.replace(/@(c\.us|lid)/, '')}</h3>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                   {selectedChat.phoneNumber ? `+${selectedChat.phoneNumber}` : selectedChat.id.split('@')[0]}
                 </span>
               </div>
+              <button 
+                onClick={() => handleClearChat(selectedChat.id)} 
+                className="btn btn-danger" 
+                style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, background: '#fee2e2', color: '#dc2626', border: '1px solid #f87171' }}
+                title="Kosongkan semua pesan di chat ini"
+              >
+                <Trash2 size={14} />
+                Kosongkan Chat
+              </button>
             </div>
 
             {/* Messages Area */}
@@ -350,8 +388,14 @@ export default function WhatsAppInboxPage() {
               ) : (
                 messages.map((msg, i) => {
                   const isMe = msg.fromMe;
+                  const isHovered = hoveredMessageId === (msg.id || i.toString());
                   return (
-                    <div key={msg.id || i} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '70%' }}>
+                    <div 
+                      key={msg.id || i} 
+                      style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '70%', position: 'relative', display: 'flex', gap: 8, alignItems: 'center', flexDirection: isMe ? 'row-reverse' : 'row' }}
+                      onMouseEnter={() => setHoveredMessageId(msg.id || i.toString())}
+                      onMouseLeave={() => setHoveredMessageId(null)}
+                    >
                       <div style={{ 
                         background: isMe ? 'var(--accent-blue)' : 'var(--surface)', 
                         color: isMe ? '#fff' : 'var(--text-primary)',
@@ -359,7 +403,8 @@ export default function WhatsAppInboxPage() {
                         borderRadius: 16,
                         borderTopRightRadius: isMe ? 4 : 16,
                         borderTopLeftRadius: !isMe ? 4 : 16,
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        flex: 1
                       }}>
                         {msg.type === 'chat' ? (
                           <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.5 }}>{msg.body}</div>
@@ -379,6 +424,27 @@ export default function WhatsAppInboxPage() {
                           {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
+                      
+                      {/* Delete Button */}
+                      {isHovered && msg.id && (
+                        <button
+                          onClick={() => handleDeleteMessage(selectedChat.id, msg.id!)}
+                          title="Hapus Pesan"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                            padding: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '50%',
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   );
                 })
