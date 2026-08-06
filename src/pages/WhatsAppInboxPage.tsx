@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { io, Socket } from 'socket.io-client';
-import { Send, User, Search, Loader2, RefreshCw, Paperclip, X, Download, Trash2, MoreVertical } from 'lucide-react';
+import { Send, User, Search, Loader2, RefreshCw, Paperclip, X, Download, Trash2 } from 'lucide-react';
 
 interface WAChat {
   id: string;
