@@ -8,6 +8,7 @@ const OrdersPage = lazy(() => import('./pages/OrdersPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const ExportPage = lazy(() => import('./pages/ExportPage'));
 const MarketingPage = lazy(() => import('./pages/MarketingPage'));
+const AdsManagerPage = lazy(() => import('./pages/AdsManagerPage'));
 const BirthdayPage = lazy(() => import('./pages/BirthdayPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const InvoicePage = lazy(() => import('./pages/InvoicePage'));
@@ -17,6 +18,8 @@ const KanbanPage = lazy(() => import('./pages/KanbanPage'));
 const RFMAnalyticsPage = lazy(() => import('./pages/RFMAnalyticsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const WhatsAppImporterPage = lazy(() => import('./pages/WhatsAppImporterPage'));
+const WhatsAppScannerPage = lazy(() => import('./pages/WhatsAppScannerPage'));
+const WhatsAppInboxPage = lazy(() => import('./pages/WhatsAppInboxPage'));
 const DrivePhotoLinkerPage = lazy(() => import('./pages/DrivePhotoLinkerPage'));
 const FinanceAnalyticsPage = lazy(() => import('./pages/FinanceAnalyticsPage'));
 const SalesTargetPage = lazy(() => import('./pages/SalesTargetPage'));
@@ -95,7 +98,7 @@ const DEFAULT_SETTINGS: StoreSettings = {
   printCustomHeight: '297',
 };
 
-type Page = 'dashboard' | 'customers' | 'orders' | 'marketing' | 'social' | 'analytics' | 'rfm-analytics' | 'finance-analytics' | 'export' | 'settings' | 'birthday' | 'reports' | 'invoice' | 'inventory' | 'kanban' | 'catalog' | 'ai-trends' | 'whatsapp-importer' | 'drive-photo-linker' | 'sales-target' | 'activity-log' | 'ig-analyzer' | 'command-center' | 'affinity-matrix' | 'profit-optimizer' | 'demand-forecast' | 'bundle-recommender' | 'chat-history';
+type Page = 'dashboard' | 'customers' | 'orders' | 'marketing' | 'ads-manager' | 'social' | 'analytics' | 'rfm-analytics' | 'finance-analytics' | 'export' | 'settings' | 'birthday' | 'reports' | 'invoice' | 'inventory' | 'kanban' | 'catalog' | 'ai-trends' | 'whatsapp-importer' | 'whatsapp-scanner' | 'whatsapp-inbox' | 'drive-photo-linker' | 'sales-target' | 'activity-log' | 'ig-analyzer' | 'command-center' | 'affinity-matrix' | 'profit-optimizer' | 'demand-forecast' | 'bundle-recommender' | 'chat-history';
 
 const PAGE_TITLES: Record<Page, { title: string; subtitle: string }> = {
   dashboard:  { title: 'Overview',           subtitle: 'Key metrics and insights at a glance' },
@@ -103,6 +106,7 @@ const PAGE_TITLES: Record<Page, { title: string; subtitle: string }> = {
   orders:     { title: 'All Orders',         subtitle: 'View and filter every transaction' },
   kanban:     { title: 'Kanban Tracker',     subtitle: 'Visual board status pesanan' },
   marketing:  { title: 'Marketing Hub',      subtitle: 'Campaigns, Flash Sales, and Re-engagement' },
+  'ads-manager': { title: 'Ads & Social Manager', subtitle: 'Lacak Iklan IG, Jadwal Konten & WA Campaign' },
   social:     { title: 'Kalender Momen',     subtitle: 'Pantau momen spesial dan ulang tahun pelanggan' },
   'ai-trends':{ title: 'AI Market Radar',    subtitle: 'Analisis tren pasar dan kompetitor secara instan' },
   analytics:  { title: 'Analytics',          subtitle: 'Deep-dive charts and distributions' },
@@ -116,6 +120,8 @@ const PAGE_TITLES: Record<Page, { title: string; subtitle: string }> = {
   export:     { title: 'Export Data',        subtitle: 'Download your data in various formats' },
   settings:   { title: 'Store Settings',     subtitle: 'Configure store details and classification thresholds' },
   'whatsapp-importer': { title: 'WhatsApp Importer', subtitle: 'Import data pelanggan dari chat WhatsApp' },
+  'whatsapp-scanner': { title: 'Hubungkan WA', subtitle: 'Scan QR Code untuk integrasi WhatsApp' },
+  'whatsapp-inbox': { title: 'WA Live Inbox', subtitle: 'Chat langsung dengan pelanggan' },
   'drive-photo-linker': { title: 'Drive Photo Linker', subtitle: 'Hubungkan foto Google Drive ke pesanan CRM' },
   'sales-target': { title: 'Sales Target', subtitle: 'Tetapkan & pantau target penjualan bulanan' },
   'activity-log': { title: 'Activity Log', subtitle: 'Riwayat semua aktivitas tambah, edit & hapus data' },
@@ -134,9 +140,23 @@ export default function App() {
   
   // Force reset any rogue scroll position that Chrome might have restored
   useEffect(() => {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-  }, []);
+    
+    // Also reset overflow containers that might have been scrolled by scrollIntoView
+    const appShell = document.querySelector('.app-shell');
+    if (appShell) appShell.scrollTop = 0;
+    
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) mainContent.scrollTop = 0;
+    
+    const pagesContainer = document.querySelector('.pages-container');
+    if (pagesContainer) pagesContainer.scrollTop = 0;
+  }, [page]);
   
   // Store settings state
   const [settings, setSettings] = useState<StoreSettings>(() => {
@@ -375,6 +395,13 @@ export default function App() {
 
   useEffect(() => {
     loadData();
+
+    // Auto-sync data every 12 hours
+    const syncInterval = setInterval(() => {
+      loadData(true);
+    }, 12 * 60 * 60 * 1000);
+
+    return () => clearInterval(syncInterval);
   }, [loadData]);
 
   // Sync username list to browser environment for Tampermonkey
@@ -998,6 +1025,9 @@ export default function App() {
             {page === 'marketing' && (
               <MarketingPage customers={customers} rows={rows} settings={settings} />
             )}
+            {page === 'ads-manager' && (
+              <AdsManagerPage />
+            )}
 {page === 'kanban' && (
               <KanbanPage rows={rows} customers={customers} settings={settings} onEditOrder={handleEditOrder} />
             )}
@@ -1042,6 +1072,8 @@ export default function App() {
                 onSave={handleSaveSettings}
               />
             )}
+            {page === 'whatsapp-scanner' && <WhatsAppScannerPage />}
+            {page === 'whatsapp-inbox' && <WhatsAppInboxPage />}
             {page === 'whatsapp-importer' && <WhatsAppImporterPage customers={customers} rows={rows} />}
             {page === 'drive-photo-linker' && <DrivePhotoLinkerPage rows={rows} onShowToast={showToast} />}
             {page === 'sales-target' && <SalesTargetPage customers={customers} rows={rows} theme={theme} />}

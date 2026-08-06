@@ -14,6 +14,7 @@ import { extractInstagramUsername, generateInstaLink } from '../utils/socialInte
 import { generateUpsellRecommendations, generateSmartCopy } from '../utils/aiEngines';
 import { Wand2 } from 'lucide-react';
 import ChatHistoryViewer from './ChatHistoryViewer';
+import CertificateGenerator from './CertificateGenerator';
 
 const isGooglePhotos = (url?: string | null) => {
   if (!url) return false;
@@ -546,7 +547,8 @@ export default function CustomerDrawer({
                           </div>
                         </div>
                         {/* Cetak / Edit / Delete order */}
-                        <div style={{ display: 'flex', gap: 4 }}>
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          <CertificateGenerator order={{ ...o, namaInstagram: customer.nama, wa: customer.wa, alamat: customer.alamat }} />
                           <button
                             className="icon-btn" style={{ width: 26, height: 26, color: 'var(--accent-purple)' }}
                             title="Cetak Invoice Order" onClick={() => printInvoice(customer, o, settings)}

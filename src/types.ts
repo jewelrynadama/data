@@ -37,6 +37,7 @@ export interface CustomerRow {
   orderStatus?: 'pending' | 'dikirim' | 'selesai' | 'retur';
   raw: string[];
   attachments?: string[];
+  serialNumber?: string;
 }
 
 export interface Customer {

@@ -189,12 +189,15 @@ export default function OrderFormModal({ customerName, customers, initial, onSav
               <input className="form-input" value={form.kode ?? ''} onChange={(e) => set('kode', e.target.value)} placeholder="cth: VPA" />
             </Field>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <Field label="Tanggal Order">
               <input className="form-input" value={form.tanggalOrder ?? ''} onChange={(e) => set('tanggalOrder', e.target.value)} placeholder="DD/MM/YYYY" />
             </Field>
             <Field label="Qty">
               <input className="form-input" type="number" min="1" value={form.qty ?? '1'} onChange={(e) => set('qty', e.target.value)} />
+            </Field>
+            <Field label="Serial Number">
+              <input className="form-input" value={form.serialNumber ?? ''} onChange={(e) => set('serialNumber', e.target.value)} placeholder="CTH: SN-2026-X89" />
             </Field>
           </div>
 

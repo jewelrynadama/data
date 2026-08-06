@@ -2759,3 +2759,132 @@ select.form-input {
 .odoo-priority-stars .star.active { color: #fbbf24; }
 .odoo-priority-stars .star:hover { transform: scale(1.1); }
 
+
+
+/* --- GLOBAL MOBILE CONSTRAINTS (ANTI HORIZONTAL SCROLL) --- */
+@media (max-width: 768px) {
+  /* Force no horizontal scroll globally */
+  html, body, .app-shell, .main-content {
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+  .page-body {
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+  
+  /* Fix all grids to single column */
+  .charts-grid,
+  .stats-grid,
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Fix Sidebar overflow */
+  .sidebar {
+    width: 100% !important;
+    height: 60px !important;
+    flex-direction: row !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border) !important;
+    z-index: 100;
+  }
+  .sidebar-nav, .sidebar-footer {
+    display: none !important;
+  }
+
+  /* Make sure all table wrappers hide and mobile cards show */
+  .table-wrapper {
+    display: none !important;
+  }
+  .mobile-card-list {
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* General Form inputs 100% */
+  .form-group, .form-input {
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box;
+  }
+}
+
+
+/* --- MODERN UI COMPONENTS --- */
+.modern-tab-container {
+  display: inline-flex;
+  gap: 6px;
+  background: var(--bg-secondary);
+  padding: 6px;
+  border-radius: 16px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  margin-bottom: 32px;
+  max-width: 100%;
+}
+.modern-tab {
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-secondary);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.modern-tab.active {
+  background: var(--bg-primary);
+  color: var(--accent-blue);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.modern-tab:hover:not(.active) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+.empty-state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  background: var(--bg-card);
+  border-radius: 16px;
+  border: 2px dashed var(--border);
+  gap: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.empty-state-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.premium-header-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(1,126,132,0.1), rgba(113,75,103,0.1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-blue);
+  flex-shrink: 0;
+}

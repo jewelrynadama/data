@@ -439,7 +439,7 @@ export default function DrivePhotoLinkerPage({ rows, onShowToast }: Props) {
 
       {/* Step 2: Link Photos to Orders */}
       {driveFiles.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div className="dashboard-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
 
           {/* Left: Drive Photos Grid */}
           <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
@@ -637,7 +637,7 @@ export default function DrivePhotoLinkerPage({ rows, onShowToast }: Props) {
             Simpan Hubungan ke CRM
           </h3>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+          <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
             <div style={{ textAlign: 'center', padding: 16, background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border)' }}>
               <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)' }}>{driveFiles.length}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Total Foto</div>

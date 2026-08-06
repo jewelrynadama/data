@@ -20,6 +20,9 @@ import {
   Grid,
   TrendingUp,
   Crosshair,
+  Target,
+  QrCode,
+  MessageSquare,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -38,6 +41,7 @@ const navItems = [
   { id: 'orders',         label: 'All Orders',           icon: ShoppingBag,     group: 'MAIN' },
   { id: 'kanban',         label: 'Kanban Tracker',       icon: Columns,         group: 'MAIN' },
   { id: 'marketing',      label: 'Marketing Hub',        icon: Megaphone,       group: 'INSIGHTS' },
+  { id: 'ads-manager',    label: 'Ads & Social',         icon: Target,          group: 'INSIGHTS', badge: 'NEW' },
   { id: 'analytics',      label: 'Analytics',            icon: BarChart3,       group: 'INSIGHTS' },
   { id: 'finance-analytics', label: 'Analisis Keuangan', icon: TrendingUp,      group: 'INSIGHTS' },
   { id: 'birthday',       label: 'Birthday Tracker',     icon: Gift,            group: 'INSIGHTS' },
@@ -45,6 +49,8 @@ const navItems = [
   { id: 'sales-target',   label: 'Sales Target',         icon: Crosshair,       group: 'INSIGHTS' },
   { id: 'activity-log',   label: 'Activity Log',         icon: ClipboardList,   group: 'INSIGHTS' },
   { id: 'chat-history', label: 'WA Chat History', icon: MessageCircle,   group: 'TOOLS', badge: 'NEW' },
+  { id: 'whatsapp-scanner',     label: 'Hubungkan WA',    icon: QrCode, group: 'TOOLS', isNew: true },
+  { id: 'whatsapp-inbox',       label: 'WA Live Inbox',   icon: MessageSquare, group: 'TOOLS', isNew: true },
   { id: 'whatsapp-importer',    label: 'WA Importer',     icon: MessageCircle, group: 'TOOLS' },
   { id: 'drive-photo-linker',   label: 'Drive Photos',    icon: HardDrive,     group: 'TOOLS' },
   { id: 'invoice',    label: 'Invoice',          icon: Receipt,         group: 'TOOLS' },
