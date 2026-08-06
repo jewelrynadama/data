@@ -51,7 +51,11 @@ export default function WhatsAppInboxPage() {
         if (parsed.waApiUrl) apiUrl = parsed.waApiUrl;
       }
     } catch (e) {}
-    const newSocket = io(apiUrl);
+    const newSocket = io(apiUrl, {
+      extraHeaders: {
+        'Bypass-Tunnel-Reminder': 'true'
+      }
+    });
   
     setSocket(newSocket);
 
