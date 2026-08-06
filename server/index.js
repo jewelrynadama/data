@@ -85,7 +85,7 @@ async function startClient() {
       },
       autoClose: 0,
       puppeteerOptions: {
-        executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        executablePath: process.platform === 'win32' ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' : undefined,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       }
     });

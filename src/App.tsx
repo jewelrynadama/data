@@ -96,6 +96,7 @@ const DEFAULT_SETTINGS: StoreSettings = {
   printMarginLeft: '15',
   printCustomWidth: '210',
   printCustomHeight: '297',
+  waApiUrl: 'http://localhost:3001'
 };
 
 type Page = 'dashboard' | 'customers' | 'orders' | 'marketing' | 'ads-manager' | 'social' | 'analytics' | 'rfm-analytics' | 'finance-analytics' | 'export' | 'settings' | 'birthday' | 'reports' | 'invoice' | 'inventory' | 'kanban' | 'catalog' | 'ai-trends' | 'whatsapp-importer' | 'whatsapp-scanner' | 'whatsapp-inbox' | 'drive-photo-linker' | 'sales-target' | 'activity-log' | 'ig-analyzer' | 'command-center' | 'affinity-matrix' | 'profit-optimizer' | 'demand-forecast' | 'bundle-recommender' | 'chat-history';

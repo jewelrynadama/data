@@ -10,7 +10,17 @@ export default function WhatsAppScannerPage() {
   
   useEffect(() => {
     // Connect to the local Node.js server
-    const newSocket = io('http://localhost:3001');
+    
+    let apiUrl = 'http://localhost:3001';
+    try {
+      const savedSettings = localStorage.getItem('pearlcrm_settings');
+      if (savedSettings) {
+        const parsed = JSON.parse(savedSettings);
+        if (parsed.waApiUrl) apiUrl = parsed.waApiUrl;
+      }
+    } catch (e) {}
+    const newSocket = io(apiUrl);
+  
     setSocket(newSocket);
 
     newSocket.on('connect', () => {

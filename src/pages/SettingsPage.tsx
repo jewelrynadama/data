@@ -48,6 +48,7 @@ export interface StoreSettings {
   printCustomWidth?: string;
   printCustomHeight?: string;
   printMarginUnit?: string;
+  waApiUrl?: string;
 }
 
 import { formatInputNumber } from '../utils/csvLoader';
@@ -102,6 +103,7 @@ export default function SettingsPage({ settings, onSave }: Props) {
   const [printMarginLeft, setPrintMarginLeft] = useState(settings.printMarginLeft || '15');
   const [printCustomWidth, setPrintCustomWidth] = useState(settings.printCustomWidth || '210');
   const [printCustomHeight, setPrintCustomHeight] = useState(settings.printCustomHeight || '297');
+  const [waApiUrl, setWaApiUrl] = useState(settings.waApiUrl || 'http://localhost:3001');
 
   const handleVipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawVal = e.target.value.replace(/\./g, '');
@@ -140,6 +142,7 @@ export default function SettingsPage({ settings, onSave }: Props) {
       printPaperSize,
       printOrientation,
       printMarginUnit,
+        waApiUrl,
       printMarginTop,
       printMarginRight,
       printMarginBottom,
@@ -177,6 +180,7 @@ export default function SettingsPage({ settings, onSave }: Props) {
       setPrintMarginLeft('15');
       setPrintCustomWidth('210');
       setPrintCustomHeight('297');
+      setWaApiUrl('http://localhost:3001');
     }
   };
 
@@ -520,6 +524,22 @@ export default function SettingsPage({ settings, onSave }: Props) {
                   </div>
 
                   {/* Mock Shipping Label Preview */}
+                                    <div className="form-group" style={{ marginTop: 18 }}>
+                    <label className="form-label" style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 8 }}>URL Server WhatsApp (API)</label>
+                    <div className="input-prefix-wrapper">
+                      <input
+                        type="text"
+                        className="form-input-premium"
+                        value={waApiUrl}
+                        onChange={(e) => setWaApiUrl(e.target.value)}
+                        placeholder="http://localhost:3001"
+                      />
+                    </div>
+                    <span className="form-helper" style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginTop: 6 }}>
+                      Masukkan URL Ngrok/Tunnel jika ingin diakses dari luar. Biarkan default jika dari laptop.
+                    </span>
+                  </div>
+
                   <div className="mock-preview-container">
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
                       🔍 PREVIEW MOCKUP PENGIRIM (LABEL PENGIRIMAN)
@@ -1038,7 +1058,8 @@ export default function SettingsPage({ settings, onSave }: Props) {
                     <div className="form-group" style={{ marginTop: 16 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                         <label className="form-label" style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Margin Kertas</label>
-                        <select className="form-input-premium" style={{ paddingLeft: 8, paddingRight: 8, height: 28, width: 'auto', fontSize: 11, cursor: 'pointer' }} value={printMarginUnit} onChange={(e) => setPrintMarginUnit(e.target.value)}>
+                        <select className="form-input-premium" style={{ paddingLeft: 8, paddingRight: 8, height: 28, width: 'auto', fontSize: 11, cursor: 'pointer' }} value={printMarginUnit,
+        waApiUrl} onChange={(e) => setPrintMarginUnit(e.target.value)}>
                           <option value="mm">Milimeter (mm)</option>
                           <option value="px">Pixel (px)</option>
                           <option value="cm">Sentimeter (cm)</option>

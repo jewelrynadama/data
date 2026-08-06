@@ -42,7 +42,17 @@ export default function WhatsAppInboxPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const newSocket = io('http://localhost:3001');
+    
+    let apiUrl = 'http://localhost:3001';
+    try {
+      const savedSettings = localStorage.getItem('pearlcrm_settings');
+      if (savedSettings) {
+        const parsed = JSON.parse(savedSettings);
+        if (parsed.waApiUrl) apiUrl = parsed.waApiUrl;
+      }
+    } catch (e) {}
+    const newSocket = io(apiUrl);
+  
     setSocket(newSocket);
 
     let chatRefreshInterval: NodeJS.Timeout;
