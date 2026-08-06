@@ -1058,8 +1058,7 @@ export default function SettingsPage({ settings, onSave }: Props) {
                     <div className="form-group" style={{ marginTop: 16 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                         <label className="form-label" style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Margin Kertas</label>
-                        <select className="form-input-premium" style={{ paddingLeft: 8, paddingRight: 8, height: 28, width: 'auto', fontSize: 11, cursor: 'pointer' }} value={printMarginUnit,
-        waApiUrl} onChange={(e) => setPrintMarginUnit(e.target.value)}>
+                        <select className="form-input-premium" style={{ paddingLeft: 8, paddingRight: 8, height: 28, width: 'auto', fontSize: 11, cursor: 'pointer' }} value={printMarginUnit} onChange={(e) => setPrintMarginUnit(e.target.value)}>
                           <option value="mm">Milimeter (mm)</option>
                           <option value="px">Pixel (px)</option>
                           <option value="cm">Sentimeter (cm)</option>
