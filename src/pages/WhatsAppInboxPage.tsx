@@ -213,6 +213,18 @@ export default function WhatsAppInboxPage() {
 
   const filteredChats = chats.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
+  if (waStatus === 'CONNECTING') {
+    return (
+      <div className="page-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+          <div className="spinner" style={{ width: 40, height: 40, border: '4px solid var(--border)', borderTopColor: 'var(--accent-blue)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <span style={{ color: 'var(--text-muted)' }}>Menghubungkan ke Server WhatsApp...</span>
+        </div>
+      </div>
+    );
+  }
+
   if (waStatus !== 'CONNECTED' && waStatus !== 'AUTHENTICATED') {
     return (
       <div className="page-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
