@@ -60,6 +60,10 @@ export default function WhatsAppInboxPage() {
     setSocket(newSocket);
 
     let chatRefreshInterval: NodeJS.Timeout;
+    
+    newSocket.on('connect', () => {
+      newSocket.emit('check_status');
+    });
 
     newSocket.on('wa_status', (data: { status: string }) => {
       setWaStatus(data.status);

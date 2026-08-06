@@ -29,6 +29,7 @@ export default function WhatsAppScannerPage() {
 
     newSocket.on('connect', () => {
       console.log('Connected to WA Backend');
+      newSocket.emit('check_status');
     });
 
     newSocket.on('wa_status', (data: { status: string, qr?: string }) => {

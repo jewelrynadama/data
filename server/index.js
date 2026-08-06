@@ -141,6 +141,10 @@ io.on('connection', (socket) => {
   console.log('A frontend client connected:', socket.id);
   
   socket.emit('wa_status', { status: whatsappStatus, qr: currentQR });
+  
+  socket.on('check_status', () => {
+    socket.emit('wa_status', { status: whatsappStatus, qr: currentQR });
+  });
 
   socket.on('get_chats', async (callback) => {
     if (whatsappStatus !== 'CONNECTED' || !waClient) {
