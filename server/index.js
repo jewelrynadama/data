@@ -203,6 +203,9 @@ io.on('connection', (socket) => {
       return callback({ success: false, error: 'WhatsApp not connected' });
     }
     try {
+      // Mark chat as read
+      waClient.sendSeen(chatId).catch(() => {});
+      
       const messages = await waClient.getMessages(chatId, { count: limit });
       
       const mappedMessages = await Promise.all(messages.map(async msg => {

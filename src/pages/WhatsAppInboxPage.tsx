@@ -131,6 +131,7 @@ export default function WhatsAppInboxPage() {
 
   const handleSelectChat = (chat: WAChat) => {
     setSelectedChat(chat);
+    setChats(prev => prev.map(c => c.id === chat.id ? { ...c, unreadCount: 0 } : c));
     setLoadingMessages(true);
     if (socket) {
       socket.emit('get_messages', { chatId: chat.id, limit: 50 }, (response: { success: boolean, messages?: WAMessage[] }) => {
