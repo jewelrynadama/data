@@ -53,7 +53,8 @@ export default function WhatsAppInboxPage() {
     } catch (e) {}
     const newSocket = io(apiUrl, {
       extraHeaders: {
-        'Bypass-Tunnel-Reminder': 'true'
+        'Bypass-Tunnel-Reminder': 'true',
+        'ngrok-skip-browser-warning': 'true'
       }
     });
   

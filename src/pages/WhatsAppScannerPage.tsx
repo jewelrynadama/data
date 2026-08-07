@@ -21,7 +21,8 @@ export default function WhatsAppScannerPage() {
     } catch (e) {}
     const newSocket = io(apiUrl, {
       extraHeaders: {
-        'Bypass-Tunnel-Reminder': 'true'
+        'Bypass-Tunnel-Reminder': 'true',
+        'ngrok-skip-browser-warning': 'true'
       }
     });
   
