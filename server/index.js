@@ -273,6 +273,19 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('delete_chat', async ({ chatId }, callback) => {
+    if (whatsappStatus !== 'CONNECTED' || !waClient) {
+      return callback({ success: false, error: 'WhatsApp not connected' });
+    }
+    try {
+      await waClient.deleteChat(chatId);
+      callback({ success: true });
+    } catch (err) {
+      console.error('Failed to delete chat:', err);
+      callback({ success: false, error: err.message });
+    }
+  });
+
   socket.on('send_message', async ({ to, message }, callback) => {
     if (whatsappStatus !== 'CONNECTED' || !waClient) {
       return callback({ success: false, error: 'WhatsApp not connected' });

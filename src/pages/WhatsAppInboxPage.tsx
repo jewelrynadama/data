@@ -222,6 +222,24 @@ export default function WhatsAppInboxPage() {
     }
   };
 
+  const handleDeleteChat = (chatId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!socket || !chatId) return;
+    if (confirm('Apakah Anda yakin ingin MENGHAPUS PERMANEN chat ini dari daftar?')) {
+      socket.emit('delete_chat', { chatId }, (res: any) => {
+        if (res.success) {
+          setChats(prev => prev.filter(c => c.id !== chatId));
+          if (selectedChat?.id === chatId) {
+            setSelectedChat(null);
+            setMessages([]);
+          }
+        } else {
+          alert('Gagal menghapus chat: ' + res.error);
+        }
+      });
+    }
+  };
+
   const handleDeleteMessage = (chatId: string, messageId: string) => {
     if (!socket || !chatId || !messageId) return;
     if (confirm('Apakah Anda yakin ingin menghapus pesan ini?')) {
@@ -323,7 +341,16 @@ export default function WhatsAppInboxPage() {
                   background: selectedChat?.id === chat.id ? 'var(--background)' : 'transparent',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 12
+                  gap: 12,
+                  position: 'relative'
+                }}
+                onMouseEnter={(e) => {
+                  const btn = e.currentTarget.querySelector('.delete-chat-btn') as HTMLElement;
+                  if (btn) btn.style.display = 'flex';
+                }}
+                onMouseLeave={(e) => {
+                  const btn = e.currentTarget.querySelector('.delete-chat-btn') as HTMLElement;
+                  if (btn) btn.style.display = 'none';
                 }}
               >
                 <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -340,11 +367,28 @@ export default function WhatsAppInboxPage() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{chat.phoneNumber || chat.id.split('@')[0]}</span>
-                    {chat.unreadCount > 0 && (
-                      <div style={{ background: '#25D366', color: '#fff', fontSize: 11, fontWeight: 'bold', padding: '2px 6px', borderRadius: 10 }}>
-                        {chat.unreadCount}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {chat.unreadCount > 0 && (
+                        <div style={{ background: '#25D366', color: '#fff', fontSize: 11, fontWeight: 'bold', padding: '2px 6px', borderRadius: 10 }}>
+                          {chat.unreadCount}
+                        </div>
+                      )}
+                      <div
+                        className="delete-chat-btn"
+                        style={{
+                          display: 'none',
+                          padding: '4px',
+                          background: '#fee2e2',
+                          color: '#dc2626',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                        onClick={(e) => handleDeleteChat(chat.id, e)}
+                        title="Hapus permanen chat dari daftar"
+                      >
+                        <Trash2 size={14} />
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>
