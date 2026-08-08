@@ -26,6 +26,8 @@ interface WAMessage {
   to: string;
   type: string;
   base64?: string;
+  footer?: string;
+  buttons?: { text: string; url: string }[];
 }
 
 export default function WhatsAppInboxPage() {
