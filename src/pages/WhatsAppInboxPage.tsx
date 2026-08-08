@@ -452,14 +452,25 @@ export default function WhatsAppInboxPage() {
                         boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                         flex: 1
                       }}>
-                        {msg.type === 'chat' ? (
-                          <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.5 }}>{msg.body}</div>
-                        ) : msg.type === 'image' && msg.base64 ? (
+                        {msg.type === 'image' && msg.base64 ? (
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <div onClick={() => setPreviewImage(msg.base64?.startsWith('data:') ? msg.base64 : `data:image/jpeg;base64,${msg.base64}`)}>
                               <img src={msg.base64.startsWith('data:') ? msg.base64 : `data:image/jpeg;base64,${msg.base64}`} alt="Sent Image" style={{ maxWidth: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 8, marginBottom: msg.body ? 8 : 0, cursor: 'zoom-in' }} />
                             </div>
                             {msg.body && <div style={{ fontSize: 14, color: isMe ? '#fff' : 'var(--text-primary)' }}>{msg.body}</div>}
+                          </div>
+                        ) : msg.body ? (
+                          <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.5 }}>
+                            {msg.body.split(/(https?:\/\/[^\s]+)/g).map((part, i) => 
+                              /(https?:\/\/[^\s]+)/.test(part) ? (
+                                <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: isMe ? '#fff' : 'var(--accent-blue)', textDecoration: 'underline' }}>{part}</a>
+                              ) : (
+                                <span key={i}>{part}</span>
+                              )
+                            )}
+                            {msg.type !== 'chat' && msg.type !== 'image' && (
+                              <div style={{ fontSize: 11, fontStyle: 'italic', marginTop: 4, opacity: 0.7 }}>[{msg.type}]</div>
+                            )}
                           </div>
                         ) : (
                           <div style={{ fontSize: 14, fontStyle: 'italic', color: isMe ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
