@@ -452,14 +452,39 @@ export default function WhatsAppInboxPage() {
                         boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                         flex: 1
                       }}>
-                        {msg.type === 'image' && msg.base64 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <div onClick={() => setPreviewImage(msg.base64?.startsWith('data:') ? msg.base64 : `data:image/jpeg;base64,${msg.base64}`)}>
-                              <img src={msg.base64.startsWith('data:') ? msg.base64 : `data:image/jpeg;base64,${msg.base64}`} alt="Sent Image" style={{ maxWidth: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 8, marginBottom: msg.body ? 8 : 0, cursor: 'zoom-in' }} />
+                        {msg.type === 'image' || (msg.body && msg.body.length > 200 && !msg.body.includes(' ') && msg.body.startsWith('/9j/')) ? (() => {
+                          const imgData = msg.base64?.startsWith('data:') ? msg.base64 : 
+                                         (msg.base64 ? `data:image/jpeg;base64,${msg.base64}` : 
+                                         (msg.body?.startsWith('/9j/') ? `data:image/jpeg;base64,${msg.body}` : msg.body));
+                          const hasCaption = !!msg.base64 && !!msg.body;
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <div onClick={() => setPreviewImage(imgData)}>
+                                <img src={imgData} alt="Sent Image" style={{ maxWidth: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 8, marginBottom: hasCaption ? 8 : 0, cursor: 'zoom-in' }} />
+                              </div>
+                              {hasCaption && <div style={{ fontSize: 14, color: isMe ? '#fff' : 'var(--text-primary)' }}>{msg.body}</div>}
                             </div>
-                            {msg.body && <div style={{ fontSize: 14, color: isMe ? '#fff' : 'var(--text-primary)' }}>{msg.body}</div>}
-                          </div>
-                        ) : msg.body ? (
+                          );
+                        })() : msg.type === 'video' ? (() => {
+                          const videoData = msg.base64?.startsWith('data:') ? msg.base64 : `data:video/mp4;base64,${msg.base64}`;
+                          const hasCaption = !!msg.base64 && !!msg.body;
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <video src={videoData} controls style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, marginBottom: hasCaption ? 8 : 0 }} />
+                              {hasCaption && <div style={{ fontSize: 14, color: isMe ? '#fff' : 'var(--text-primary)' }}>{msg.body}</div>}
+                            </div>
+                          );
+                        })() : msg.type === 'document' ? (() => {
+                          const docData = msg.base64?.startsWith('data:') ? msg.base64 : `data:application/pdf;base64,${msg.base64}`;
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <a href={docData} download="document" style={{ color: isMe ? '#fff' : 'var(--accent-blue)', textDecoration: 'underline', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <Paperclip size={16} /> Unduh Dokumen
+                              </a>
+                              {msg.body && msg.body.length < 200 && <div style={{ fontSize: 14, color: isMe ? '#fff' : 'var(--text-primary)', marginTop: 4 }}>{msg.body}</div>}
+                            </div>
+                          );
+                        })() : msg.body && (!msg.body.startsWith('/9j/') || msg.body.includes(' ')) ? (
                           <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.5 }}>
                             {msg.body.split(/(https?:\/\/[^\s]+)/g).map((part, i) => 
                               /(https?:\/\/[^\s]+)/.test(part) ? (
