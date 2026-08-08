@@ -46,6 +46,33 @@ app.get('/debug', async (req, res) => {
     }
 });
 
+app.get('/debug_messages', async (req, res) => {
+    if (!waClient) return res.send('no client');
+    try {
+        const chatId = req.query.chatId || '622150996855@c.us';
+        const messages = await waClient.getMessages(chatId, { count: 3 });
+        const debugMsgs = messages.map(msg => {
+            const allKeys = Object.keys(msg);
+            const result = {};
+            for (const key of allKeys) {
+                const val = msg[key];
+                if (val === null || val === undefined || val === '' || val === false) continue;
+                if (typeof val === 'string' && val.length > 300) {
+                    result[key] = val.substring(0, 100) + '...[truncated, length=' + val.length + ']';
+                } else if (typeof val === 'object') {
+                    try { result[key] = JSON.parse(JSON.stringify(val)); } catch(e) { result[key] = '[object]'; }
+                } else {
+                    result[key] = val;
+                }
+            }
+            return result;
+        });
+        res.json(debugMsgs);
+    } catch (e) {
+        res.send(e.toString());
+    }
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   maxHttpBufferSize: 50 * 1024 * 1024, // 50 MB
@@ -110,15 +137,29 @@ async function startClient() {
             }
         }
         
-        let extractedBody = (msg.type === 'image' || msg.isMedia) ? (msg.caption || '') : (msg.body || msg.caption || '');
-        if (msg.body && typeof msg.body === 'string' && msg.body.length > 200 && !msg.body.includes(' ') && msg.body.startsWith('/9j/')) {
-            base64 = base64 || msg.body;
-            extractedBody = msg.caption || msg.interactive?.body?.text || msg.nativeFlowMessage?.body?.text || '';
-        }
-        if (msg.type === 'interactive' || msg.type === 'list' || msg.type === 'button') {
-            if (!extractedBody || extractedBody === msg.body) {
-                extractedBody = msg.caption || msg.interactive?.body?.text || msg.nativeFlowMessage?.body?.text || msg.body || '';
+        // For interactive messages (Shopee, etc.): body contains base64 image, caption contains text
+        let extractedBody = '';
+        let footer = '';
+        let buttons = [];
+        
+        if (msg.type === 'interactive' || msg.interactiveType) {
+            if (msg.body && typeof msg.body === 'string' && msg.body.startsWith('/9j/')) {
+                base64 = base64 || `data:image/jpeg;base64,${msg.body}`;
             }
+            extractedBody = msg.caption || '';
+            footer = msg.footer || '';
+            if (msg.interactivePayload?.buttons) {
+                buttons = msg.interactivePayload.buttons.map(btn => {
+                    try {
+                        const params = JSON.parse(btn.buttonParamsJson || '{}');
+                        return { text: params.display_text || btn.name, url: params.landing_page_url || params.url || '' };
+                    } catch(e) { return { text: btn.name, url: '' }; }
+                });
+            }
+        } else if (msg.type === 'image' || msg.isMedia) {
+            extractedBody = msg.caption || '';
+        } else {
+            extractedBody = msg.body || msg.caption || '';
         }
 
         console.log('Incoming message from', senderName, ':', extractedBody.length > 50 ? extractedBody.substring(0, 50) + '...' : (extractedBody || '[Media]'));
@@ -130,7 +171,9 @@ async function startClient() {
             body: extractedBody,
             timestamp: msg.t,
             type: msg.type,
-            base64: base64
+            base64: base64,
+            footer: footer,
+            buttons: buttons
         });
       } catch (err) {
         console.error('Error handling onMessage:', err);
@@ -237,15 +280,31 @@ io.on('connection', (socket) => {
             } catch (err) { }
         }
 
-        let extractedBody = (msg.type === 'image' || msg.isMedia) ? (msg.caption || '') : (msg.body || msg.caption || '');
-        if (msg.body && typeof msg.body === 'string' && msg.body.length > 200 && !msg.body.includes(' ') && msg.body.startsWith('/9j/')) {
-            base64 = base64 || msg.body;
-            extractedBody = msg.caption || msg.interactive?.body?.text || msg.nativeFlowMessage?.body?.text || '';
-        }
-        if (msg.type === 'interactive' || msg.type === 'list' || msg.type === 'button') {
-            if (!extractedBody || extractedBody === msg.body) {
-                extractedBody = msg.caption || msg.interactive?.body?.text || msg.nativeFlowMessage?.body?.text || msg.body || '';
+        // For interactive messages (Shopee, etc.): body contains base64 image, caption contains text
+        let extractedBody = '';
+        let footer = '';
+        let buttons = [];
+        
+        if (msg.type === 'interactive' || msg.interactiveType) {
+            // Body has base64 image data, caption has the actual text
+            if (msg.body && typeof msg.body === 'string' && msg.body.startsWith('/9j/')) {
+                base64 = base64 || `data:image/jpeg;base64,${msg.body}`;
             }
+            extractedBody = msg.caption || '';
+            footer = msg.footer || '';
+            // Extract CTA buttons
+            if (msg.interactivePayload?.buttons) {
+                buttons = msg.interactivePayload.buttons.map(btn => {
+                    try {
+                        const params = JSON.parse(btn.buttonParamsJson || '{}');
+                        return { text: params.display_text || btn.name, url: params.landing_page_url || params.url || '' };
+                    } catch(e) { return { text: btn.name, url: '' }; }
+                });
+            }
+        } else if (msg.type === 'image' || msg.isMedia) {
+            extractedBody = msg.caption || '';
+        } else {
+            extractedBody = msg.body || msg.caption || '';
         }
 
         return {
@@ -258,7 +317,9 @@ io.on('connection', (socket) => {
             type: msg.type || 'chat',
             status: status,
             senderName: senderName,
-            base64: base64
+            base64: base64,
+            footer: footer,
+            buttons: buttons
         };
       }));
       

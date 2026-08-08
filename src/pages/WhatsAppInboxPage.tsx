@@ -452,56 +452,102 @@ export default function WhatsAppInboxPage() {
                         boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                         flex: 1
                       }}>
-                        {msg.type === 'image' || (msg.body && msg.body.length > 200 && !msg.body.includes(' ') && msg.body.startsWith('/9j/')) ? (() => {
-                          const imgData = msg.base64?.startsWith('data:') ? msg.base64 : 
-                                         (msg.base64 ? `data:image/jpeg;base64,${msg.base64}` : 
-                                         (msg.body?.startsWith('/9j/') ? `data:image/jpeg;base64,${msg.body}` : msg.body));
-                          const hasCaption = !!msg.base64 && !!msg.body;
-                          return (
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <div onClick={() => setPreviewImage(imgData)}>
-                                <img src={imgData} alt="Sent Image" style={{ maxWidth: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 8, marginBottom: hasCaption ? 8 : 0, cursor: 'zoom-in' }} />
+                        {(() => {
+                          const imgSrc = msg.base64?.startsWith('data:') ? msg.base64 : (msg.base64 ? `data:image/jpeg;base64,${msg.base64}` : null);
+                          const renderLinks = (text: string) => text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+                            /(https?:\/\/[^\s]+)/.test(part) ? (
+                              <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: isMe ? '#fff' : 'var(--accent-blue)', textDecoration: 'underline' }}>{part}</a>
+                            ) : (<span key={i}>{part}</span>)
+                          );
+
+                          // Interactive messages (Shopee, business accounts)
+                          if (msg.type === 'interactive' || (msg.base64 && msg.body && msg.footer)) {
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                {imgSrc && (
+                                  <div onClick={() => setPreviewImage(imgSrc)} style={{ marginBottom: 8 }}>
+                                    <img src={imgSrc} alt="Promo" style={{ maxWidth: '100%', maxHeight: 250, objectFit: 'contain', borderRadius: 8, cursor: 'zoom-in' }} />
+                                  </div>
+                                )}
+                                {msg.body && (
+                                  <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.5 }}>
+                                    {renderLinks(msg.body)}
+                                  </div>
+                                )}
+                                {msg.footer && (
+                                  <div style={{ fontSize: 12, color: isMe ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)', marginTop: 6, fontStyle: 'italic' }}>
+                                    {msg.footer}
+                                  </div>
+                                )}
+                                {msg.buttons && msg.buttons.length > 0 && (
+                                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    {msg.buttons.map((btn: any, bi: number) => (
+                                      <a key={bi} href={btn.url} target="_blank" rel="noopener noreferrer"
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, background: 'rgba(0,175,110,0.1)', border: '1px solid rgba(0,175,110,0.3)', color: '#00af6e', fontSize: 13, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
+                                        ✅ {btn.text}
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                              {hasCaption && <div style={{ fontSize: 14, color: isMe ? '#fff' : 'var(--text-primary)' }}>{msg.body}</div>}
-                            </div>
-                          );
-                        })() : msg.type === 'video' ? (() => {
-                          const videoData = msg.base64?.startsWith('data:') ? msg.base64 : `data:video/mp4;base64,${msg.base64}`;
-                          const hasCaption = !!msg.base64 && !!msg.body;
+                            );
+                          }
+
+                          // Image messages
+                          if (msg.type === 'image' && imgSrc) {
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <div onClick={() => setPreviewImage(imgSrc)}>
+                                  <img src={imgSrc} alt="Sent Image" style={{ maxWidth: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 8, marginBottom: msg.body ? 8 : 0, cursor: 'zoom-in' }} />
+                                </div>
+                                {msg.body && <div style={{ fontSize: 14, color: isMe ? '#fff' : 'var(--text-primary)' }}>{renderLinks(msg.body)}</div>}
+                              </div>
+                            );
+                          }
+
+                          // Video messages
+                          if (msg.type === 'video' && msg.base64) {
+                            const videoData = msg.base64.startsWith('data:') ? msg.base64 : `data:video/mp4;base64,${msg.base64}`;
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <video src={videoData} controls style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, marginBottom: msg.body ? 8 : 0 }} />
+                                {msg.body && <div style={{ fontSize: 14, color: isMe ? '#fff' : 'var(--text-primary)' }}>{msg.body}</div>}
+                              </div>
+                            );
+                          }
+
+                          // Document messages
+                          if (msg.type === 'document' && msg.base64) {
+                            const docData = msg.base64.startsWith('data:') ? msg.base64 : `data:application/pdf;base64,${msg.base64}`;
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <a href={docData} download="document" style={{ color: isMe ? '#fff' : 'var(--accent-blue)', textDecoration: 'underline', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Paperclip size={16} /> Unduh Dokumen
+                                </a>
+                                {msg.body && <div style={{ fontSize: 14, color: isMe ? '#fff' : 'var(--text-primary)', marginTop: 4 }}>{msg.body}</div>}
+                              </div>
+                            );
+                          }
+
+                          // Text messages (default)
+                          if (msg.body) {
+                            return (
+                              <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.5 }}>
+                                {renderLinks(msg.body)}
+                                {msg.type !== 'chat' && msg.type !== 'image' && (
+                                  <div style={{ fontSize: 11, fontStyle: 'italic', marginTop: 4, opacity: 0.7 }}>[{msg.type}]</div>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          // Fallback
                           return (
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <video src={videoData} controls style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, marginBottom: hasCaption ? 8 : 0 }} />
-                              {hasCaption && <div style={{ fontSize: 14, color: isMe ? '#fff' : 'var(--text-primary)' }}>{msg.body}</div>}
+                            <div style={{ fontSize: 14, fontStyle: 'italic', color: isMe ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
+                              [{msg.type} message]
                             </div>
                           );
-                        })() : msg.type === 'document' ? (() => {
-                          const docData = msg.base64?.startsWith('data:') ? msg.base64 : `data:application/pdf;base64,${msg.base64}`;
-                          return (
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <a href={docData} download="document" style={{ color: isMe ? '#fff' : 'var(--accent-blue)', textDecoration: 'underline', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <Paperclip size={16} /> Unduh Dokumen
-                              </a>
-                              {msg.body && msg.body.length < 200 && <div style={{ fontSize: 14, color: isMe ? '#fff' : 'var(--text-primary)', marginTop: 4 }}>{msg.body}</div>}
-                            </div>
-                          );
-                        })() : msg.body && (!msg.body.startsWith('/9j/') || msg.body.includes(' ')) ? (
-                          <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14, lineHeight: 1.5 }}>
-                            {msg.body.split(/(https?:\/\/[^\s]+)/g).map((part, i) => 
-                              /(https?:\/\/[^\s]+)/.test(part) ? (
-                                <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: isMe ? '#fff' : 'var(--accent-blue)', textDecoration: 'underline' }}>{part}</a>
-                              ) : (
-                                <span key={i}>{part}</span>
-                              )
-                            )}
-                            {msg.type !== 'chat' && msg.type !== 'image' && (
-                              <div style={{ fontSize: 11, fontStyle: 'italic', marginTop: 4, opacity: 0.7 }}>[{msg.type}]</div>
-                            )}
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: 14, fontStyle: 'italic', color: isMe ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
-                            [{msg.type} message]
-                          </div>
-                        )}
+                        })()}
                         <div style={{ fontSize: 10, marginTop: 4, textAlign: 'right', color: isMe ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
                           {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
