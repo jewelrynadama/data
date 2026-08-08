@@ -110,13 +110,24 @@ async function startClient() {
             }
         }
         
-        console.log('Incoming message from', senderName, ':', msg.body || '[Media]');
+        let extractedBody = (msg.type === 'image' || msg.isMedia) ? (msg.caption || '') : (msg.body || msg.caption || '');
+        if (msg.body && typeof msg.body === 'string' && msg.body.length > 200 && !msg.body.includes(' ') && msg.body.startsWith('/9j/')) {
+            base64 = base64 || msg.body;
+            extractedBody = msg.caption || msg.interactive?.body?.text || msg.nativeFlowMessage?.body?.text || '';
+        }
+        if (msg.type === 'interactive' || msg.type === 'list' || msg.type === 'button') {
+            if (!extractedBody || extractedBody === msg.body) {
+                extractedBody = msg.caption || msg.interactive?.body?.text || msg.nativeFlowMessage?.body?.text || msg.body || '';
+            }
+        }
+
+        console.log('Incoming message from', senderName, ':', extractedBody.length > 50 ? extractedBody.substring(0, 50) + '...' : (extractedBody || '[Media]'));
 
         io.emit('wa_message_received', {
             from: msg.from,
             to: msg.to,
             senderName: senderName,
-            body: (msg.type === 'image' || msg.isMedia) ? (msg.caption || '') : (msg.body || msg.caption || ''),
+            body: extractedBody,
             timestamp: msg.t,
             type: msg.type,
             base64: base64
@@ -226,10 +237,21 @@ io.on('connection', (socket) => {
             } catch (err) { }
         }
 
+        let extractedBody = (msg.type === 'image' || msg.isMedia) ? (msg.caption || '') : (msg.body || msg.caption || '');
+        if (msg.body && typeof msg.body === 'string' && msg.body.length > 200 && !msg.body.includes(' ') && msg.body.startsWith('/9j/')) {
+            base64 = base64 || msg.body;
+            extractedBody = msg.caption || msg.interactive?.body?.text || msg.nativeFlowMessage?.body?.text || '';
+        }
+        if (msg.type === 'interactive' || msg.type === 'list' || msg.type === 'button') {
+            if (!extractedBody || extractedBody === msg.body) {
+                extractedBody = msg.caption || msg.interactive?.body?.text || msg.nativeFlowMessage?.body?.text || msg.body || '';
+            }
+        }
+
         return {
             id: msg.id,
             fromMe: msg.fromMe,
-            body: (msg.type === 'image' || msg.isMedia) ? (msg.caption || '') : (msg.body || msg.caption || ''),
+            body: extractedBody,
             timestamp: msg.t,
             from: msg.from,
             to: msg.to,
