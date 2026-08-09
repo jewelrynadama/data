@@ -129,7 +129,8 @@ async function startClient() {
         let senderName = msg.sender?.name || msg.sender?.pushname || msg.sender?.shortName || msg.from;
         
         let base64 = null;
-        if (msg.isMedia || msg.type === 'image') {
+        const hasInteractiveMedia = (msg.type === 'interactive' || msg.interactiveType) && msg.interactiveHeader?.hasMediaAttachment;
+        if (msg.isMedia || msg.type === 'image' || msg.type === 'video' || msg.type === 'document' || hasInteractiveMedia) {
             try {
                 base64 = await waClient.downloadMedia(msg.id);
             } catch (err) {
@@ -143,8 +144,8 @@ async function startClient() {
         let buttons = [];
         
         if (msg.type === 'interactive' || msg.interactiveType) {
-            if (msg.body && typeof msg.body === 'string' && msg.body.startsWith('/9j/')) {
-                base64 = base64 || `data:image/jpeg;base64,${msg.body}`;
+            if (!base64 && msg.body && typeof msg.body === 'string' && msg.body.startsWith('/9j/')) {
+                base64 = `data:image/jpeg;base64,${msg.body}`;
             }
             extractedBody = msg.caption || '';
             footer = msg.footer || '';
@@ -274,7 +275,8 @@ io.on('connection', (socket) => {
         else if (msg.ack === 1) status = 'SENT';
 
         let base64 = null;
-        if (msg.isMedia || msg.type === 'image') {
+        const hasInteractiveMedia = (msg.type === 'interactive' || msg.interactiveType) && msg.interactiveHeader?.hasMediaAttachment;
+        if (msg.isMedia || msg.type === 'image' || msg.type === 'video' || msg.type === 'document' || hasInteractiveMedia) {
             try {
                 base64 = await waClient.downloadMedia(msg.id);
             } catch (err) { }
@@ -286,9 +288,9 @@ io.on('connection', (socket) => {
         let buttons = [];
         
         if (msg.type === 'interactive' || msg.interactiveType) {
-            // Body has base64 image data, caption has the actual text
-            if (msg.body && typeof msg.body === 'string' && msg.body.startsWith('/9j/')) {
-                base64 = base64 || `data:image/jpeg;base64,${msg.body}`;
+            // If downloadMedia failed, fall back to body thumbnail
+            if (!base64 && msg.body && typeof msg.body === 'string' && msg.body.startsWith('/9j/')) {
+                base64 = `data:image/jpeg;base64,${msg.body}`;
             }
             extractedBody = msg.caption || '';
             footer = msg.footer || '';
