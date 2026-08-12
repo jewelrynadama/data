@@ -15,14 +15,11 @@ import {
   Package,
   Columns,
   ClipboardList,
-  MessageCircle,
   HardDrive,
   Grid,
   TrendingUp,
   Crosshair,
-  Target,
-  QrCode,
-  MessageSquare,
+  Target
 } from 'lucide-react';
 
 interface SidebarProps {
