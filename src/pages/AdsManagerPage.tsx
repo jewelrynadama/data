@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { 
   Target, Calendar, MessageCircle, BarChart3, 
-  Plus, Trash2, Check, Zap, Instagram, RefreshCw, Settings
+  Plus, Trash2, Check, Zap, Instagram, RefreshCw, Settings,
+  TrendingUp, TrendingDown, DollarSign, Activity, MousePointerClick
 } from 'lucide-react';
 import { generateSmartCopy } from '../utils/aiEngines';
 import { formatRupiah } from '../utils/csvLoader';
@@ -123,6 +124,12 @@ export default function AdsManagerPage() {
     }
   };
 
+  // --- Derived Metrics ---
+  const totalSpent = ads.reduce((sum, ad) => sum + ad.spent, 0);
+  const totalRevenue = ads.reduce((sum, ad) => sum + ad.sales, 0);
+  const overallROI = totalSpent > 0 ? ((totalRevenue - totalSpent) / totalSpent * 100).toFixed(1) : 0;
+  const activeAdsCount = ads.filter(a => a.status === 'active').length;
+
   return (
     <div className="page-body fade-in">
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
@@ -136,31 +143,86 @@ export default function AdsManagerPage() {
             <h1 className="gradient-text" style={{ fontSize: 28, margin: '0 0 8px', fontWeight: 800 }}>
               Ads & Social Manager
             </h1>
-            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 15 }}>Tingkatkan penjualan dengan iklan dan marketing cerdas.</p>
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 15 }}>Lacak dan optimalkan pengeluaran Iklan Anda secara cerdas.</p>
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="modern-tab-container">
-        <button className={`modern-tab ${activeTab === 'tracker' ? 'active' : ''}`} onClick={() => setActiveTab('tracker')}>
+      {/* Modern Tabs (Segmented Control Style) */}
+      <div className="modern-tab-container" style={{ background: 'var(--bg-tertiary)', padding: 4, borderRadius: 12, display: 'inline-flex', gap: 4, marginBottom: 24 }}>
+        <button 
+          className={`modern-tab ${activeTab === 'tracker' ? 'active' : ''}`} 
+          style={{ padding: '10px 20px', borderRadius: 8, transition: 'all 0.2s', background: activeTab === 'tracker' ? 'var(--bg-card)' : 'transparent', boxShadow: activeTab === 'tracker' ? 'var(--shadow-sm)' : 'none', color: activeTab === 'tracker' ? 'var(--text-primary)' : 'var(--text-muted)' }}
+          onClick={() => setActiveTab('tracker')}
+        >
           <BarChart3 size={16} /> IG Ads Tracker
         </button>
-        <button className={`modern-tab ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>
+        <button 
+          className={`modern-tab ${activeTab === 'calendar' ? 'active' : ''}`} 
+          style={{ padding: '10px 20px', borderRadius: 8, transition: 'all 0.2s', background: activeTab === 'calendar' ? 'var(--bg-card)' : 'transparent', boxShadow: activeTab === 'calendar' ? 'var(--shadow-sm)' : 'none', color: activeTab === 'calendar' ? 'var(--text-primary)' : 'var(--text-muted)' }}
+          onClick={() => setActiveTab('calendar')}
+        >
           <Calendar size={16} /> Content Planner
         </button>
-        <button className={`modern-tab ${activeTab === 'whatsapp' ? 'active' : ''}`} onClick={() => setActiveTab('whatsapp')}>
+        <button 
+          className={`modern-tab ${activeTab === 'whatsapp' ? 'active' : ''}`} 
+          style={{ padding: '10px 20px', borderRadius: 8, transition: 'all 0.2s', background: activeTab === 'whatsapp' ? 'var(--bg-card)' : 'transparent', boxShadow: activeTab === 'whatsapp' ? 'var(--shadow-sm)' : 'none', color: activeTab === 'whatsapp' ? 'var(--text-primary)' : 'var(--text-muted)' }}
+          onClick={() => setActiveTab('whatsapp')}
+        >
           <MessageCircle size={16} /> WA A/B Testing
         </button>
       </div>
 
       {/* --- TAB: IG ADS TRACKER --- */}
       {activeTab === 'tracker' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          
+          {/* Top Summary Cards */}
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div className="stat-icon pink"><DollarSign size={22} /></div>
+                <div>
+                  <div className="stat-label">Total Spent</div>
+                  <div className="stat-value">{formatRupiah(totalSpent)}</div>
+                </div>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div className="stat-icon green"><TrendingUp size={22} /></div>
+                <div>
+                  <div className="stat-label">Total Revenue</div>
+                  <div className="stat-value">{formatRupiah(totalRevenue)}</div>
+                </div>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div className={`stat-icon ${Number(overallROI) >= 0 ? 'green' : 'pink'}`}><Activity size={22} /></div>
+                <div>
+                  <div className="stat-label">Avg ROI</div>
+                  <div className="stat-value" style={{ color: Number(overallROI) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                    {overallROI}%
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div className="stat-icon cyan"><Target size={22} /></div>
+                <div>
+                  <div className="stat-label">Active Campaigns</div>
+                  <div className="stat-value">{activeAdsCount}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ margin: 0, fontSize: 18 }}>Campaigns (Iklan Berjalan)</h2>
             <div style={{ display: 'flex', gap: 12 }}>
-              <button className="btn btn-secondary" onClick={handleSyncMeta} disabled={isSyncing} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button className="btn btn-secondary" onClick={handleSyncMeta} disabled={isSyncing} style={{ display: 'flex', gap: 6, alignItems: 'center', background: 'var(--bg-tertiary)', border: 'none' }}>
                 <RefreshCw size={14} className={isSyncing ? 'spin' : ''} />
                 {isSyncing ? 'Menyinkronkan...' : 'Sync Meta API'}
               </button>
@@ -174,7 +236,7 @@ export default function AdsManagerPage() {
           </div>
 
           {showAddAd && (
-            <div className="card" style={{ padding: 20, border: '1px solid var(--accent-blue)' }}>
+            <div className="card" style={{ padding: 20, border: '1px solid var(--accent-blue)', background: 'var(--bg-secondary)' }}>
               <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Tambah Campaign Baru</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
                 <div>
@@ -191,39 +253,98 @@ export default function AdsManagerPage() {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
             {ads.map(ad => {
               const roi = ad.spent > 0 ? ((ad.sales - ad.spent) / ad.spent * 100).toFixed(1) : 0;
+              const isRoiPositive = Number(roi) >= 0;
+              const budgetUsage = ad.budget > 0 ? Math.min((ad.spent / ad.budget) * 100, 100) : 0;
+              
               return (
-                <div key={ad.id} className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div key={ad.id} className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, position: 'relative' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <h4 style={{ margin: '0 0 4px', fontSize: 16 }}>{ad.name}</h4>
-                      <span className={`badge ${ad.status === 'active' ? 'badge-blue' : 'badge-gray'}`}>{ad.status}</span>
+                    <div style={{ flex: 1, paddingRight: 12 }}>
+                      <h4 style={{ margin: '0 0 6px', fontSize: 16, lineHeight: 1.3 }}>{ad.name}</h4>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span className={`badge ${ad.status === 'active' ? 'badge-blue' : 'badge-gray'}`} style={{ fontSize: 11 }}>{ad.status.toUpperCase()}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Instagram size={12} color="#e1306c" /> {ad.platform}
+                        </span>
+                      </div>
                     </div>
-                    <Instagram size={20} color="#e1306c" />
+                    <div className={`badge ${isRoiPositive ? 'badge-green' : 'badge-red'}`} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', fontSize: 13, fontWeight: 700 }}>
+                      {isRoiPositive ? <TrendingUp size={14} /> : <TrendingDown size={14} />} {roi}%
+                    </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13, background: 'var(--bg-tertiary)', padding: 12, borderRadius: 8 }}>
-                    <div><span style={{ color: 'var(--text-muted)' }}>Budget:</span><br/><b>{formatRupiah(ad.budget)}</b></div>
-                    <div><span style={{ color: 'var(--text-muted)' }}>Spent:</span><br/><b>{formatRupiah(ad.spent)}</b></div>
-                    <div><span style={{ color: 'var(--text-muted)' }}>Clicks:</span><br/><b>{ad.clicks}</b></div>
-                    <div><span style={{ color: 'var(--text-muted)' }}>Leads/Sales:</span><br/><b>{ad.leads} / {formatRupiah(ad.sales)}</b></div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 13, background: 'var(--bg-tertiary)', padding: 12, borderRadius: 10 }}>
+                    <div>
+                      <div style={{ color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><MousePointerClick size={14}/> Clicks</div>
+                      <div style={{ fontSize: 16, fontWeight: 700 }}>{ad.clicks}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}><Target size={14}/> Leads/Sales</div>
+                      <div style={{ fontSize: 16, fontWeight: 700 }}>{ad.leads} <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 400 }}>/ {formatRupiah(ad.sales)}</span></div>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
-                    <span style={{ fontSize: 12, color: Number(roi) > 0 ? 'var(--accent-green)' : 'var(--text-muted)' }}>ROI: {roi}%</span>
-                    <button className="icon-btn" onClick={() => setAds(ads.filter(a => a.id !== ad.id))}><Trash2 size={14} color="var(--accent-red)" /></button>
+
+                  <div style={{ marginTop: 'auto' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                      <span>Spent: <b>{formatRupiah(ad.spent)}</b></span>
+                      <span>Budget: {formatRupiah(ad.budget)}</span>
+                    </div>
+                    <div style={{ height: 6, background: 'var(--bg-tertiary)', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ 
+                        height: '100%', 
+                        width: `${budgetUsage}%`, 
+                        background: budgetUsage > 90 ? 'var(--accent-red)' : 'var(--accent-blue)',
+                        transition: 'width 0.5s ease'
+                      }} />
+                    </div>
                   </div>
+                  
+                  <button 
+                    className="icon-btn" 
+                    onClick={() => setAds(ads.filter(a => a.id !== ad.id))}
+                    style={{ position: 'absolute', bottom: 16, right: 16, background: 'var(--bg-tertiary)' }}
+                  >
+                    <Trash2 size={14} color="var(--accent-red)" />
+                  </button>
                 </div>
               );
             })}
+            
             {ads.length === 0 && (
-              <div className="empty-state-card" style={{ gridColumn: '1 / -1' }}>
-                <div className="empty-state-icon"><BarChart3 size={32} /></div>
-                <div>
-                  <h3 style={{ margin: '0 0 8px', color: 'var(--text-primary)' }}>Belum Ada Iklan Aktif</h3>
-                  <p style={{ margin: 0, color: 'var(--text-muted)' }}>Sinkronkan dengan Meta API atau buat iklan secara manual.</p>
+              <div className="empty-state-card" style={{ 
+                gridColumn: '1 / -1', 
+                padding: '48px 24px', 
+                background: 'linear-gradient(145deg, var(--bg-card) 0%, var(--bg-tertiary) 100%)',
+                border: '1px dashed var(--border)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                textAlign: 'center',
+                gap: 16
+              }}>
+                <div style={{ 
+                  width: 64, height: 64, borderRadius: 20, 
+                  background: 'linear-gradient(135deg, rgba(1, 126, 132, 0.2) 0%, rgba(113, 75, 103, 0.2) 100%)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--accent-blue)', marginBottom: 8
+                }}>
+                  <BarChart3 size={32} />
                 </div>
-                <button className="btn btn-primary" onClick={() => setShowAddAd(true)}>+ Buat Manual</button>
+                <div>
+                  <h3 style={{ margin: '0 0 8px', fontSize: 20, color: 'var(--text-primary)' }}>Belum Ada Kampanye Iklan Aktif</h3>
+                  <p style={{ margin: 0, color: 'var(--text-secondary)', maxWidth: 400 }}>Sinkronkan dengan akun Meta Developer Anda untuk menarik data otomatis, atau buat pencatatan iklan secara manual.</p>
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                  <button className="btn btn-primary" onClick={() => setShowAddAd(true)} style={{ padding: '10px 24px', borderRadius: 8, boxShadow: '0 4px 12px rgba(1, 126, 132, 0.3)' }}>
+                    + Buat Manual
+                  </button>
+                  <button className="btn btn-secondary" onClick={() => setShowMetaSettings(true)} style={{ padding: '10px 24px', borderRadius: 8 }}>
+                    <Settings size={16} style={{ marginRight: 6 }}/> Setup Meta API
+                  </button>
+                </div>
               </div>
             )}
           </div>
