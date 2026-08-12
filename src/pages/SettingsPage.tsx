@@ -524,21 +524,6 @@ export default function SettingsPage({ settings, onSave }: Props) {
                   </div>
 
                   {/* Mock Shipping Label Preview */}
-                                    <div className="form-group" style={{ marginTop: 18 }}>
-                    <label className="form-label" style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 8 }}>URL Server WhatsApp (API)</label>
-                    <div className="input-prefix-wrapper">
-                      <input
-                        type="text"
-                        className="form-input-premium"
-                        value={waApiUrl}
-                        onChange={(e) => setWaApiUrl(e.target.value)}
-                        placeholder="http://localhost:3001"
-                      />
-                    </div>
-                    <span className="form-helper" style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginTop: 6 }}>
-                      Masukkan URL Ngrok/Tunnel jika ingin diakses dari luar. Biarkan default jika dari laptop.
-                    </span>
-                  </div>
 
                   <div className="mock-preview-container">
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>

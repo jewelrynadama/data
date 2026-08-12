@@ -17,9 +17,6 @@ const CatalogPage = lazy(() => import('./pages/CatalogPage'));
 const KanbanPage = lazy(() => import('./pages/KanbanPage'));
 const RFMAnalyticsPage = lazy(() => import('./pages/RFMAnalyticsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const WhatsAppImporterPage = lazy(() => import('./pages/WhatsAppImporterPage'));
-const WhatsAppScannerPage = lazy(() => import('./pages/WhatsAppScannerPage'));
-const WhatsAppInboxPage = lazy(() => import('./pages/WhatsAppInboxPage'));
 const DrivePhotoLinkerPage = lazy(() => import('./pages/DrivePhotoLinkerPage'));
 const FinanceAnalyticsPage = lazy(() => import('./pages/FinanceAnalyticsPage'));
 const SalesTargetPage = lazy(() => import('./pages/SalesTargetPage'));
@@ -62,7 +59,6 @@ const AffinityMatrixPage = lazy(() => import('./pages/AffinityMatrixPage'));
 const ProfitOptimizerPage = lazy(() => import('./pages/ProfitOptimizerPage'));
 const DemandForecastPage = lazy(() => import('./pages/DemandForecastPage'));
 const BundleRecommenderPage = lazy(() => import('./pages/BundleRecommenderPage'));
-const ChatImportPage = lazy(() => import('./pages/ChatImportPage'));
 import CommandCenter from './components/CommandCenter';
 import JarvisVoiceAI from './components/JarvisVoiceAI';
 
@@ -95,8 +91,7 @@ const DEFAULT_SETTINGS: StoreSettings = {
   printMarginBottom: '15',
   printMarginLeft: '15',
   printCustomWidth: '210',
-  printCustomHeight: '297',
-  waApiUrl: 'http://localhost:3001'
+  printCustomHeight: '297'
 };
 
 type Page = 'dashboard' | 'customers' | 'orders' | 'marketing' | 'ads-manager' | 'social' | 'analytics' | 'rfm-analytics' | 'finance-analytics' | 'export' | 'settings' | 'birthday' | 'reports' | 'invoice' | 'inventory' | 'kanban' | 'catalog' | 'ai-trends' | 'whatsapp-importer' | 'whatsapp-scanner' | 'whatsapp-inbox' | 'drive-photo-linker' | 'sales-target' | 'activity-log' | 'ig-analyzer' | 'command-center' | 'affinity-matrix' | 'profit-optimizer' | 'demand-forecast' | 'bundle-recommender' | 'chat-history';
@@ -1073,9 +1068,6 @@ export default function App() {
                 onSave={handleSaveSettings}
               />
             )}
-            {page === 'whatsapp-scanner' && <WhatsAppScannerPage />}
-            {page === 'whatsapp-inbox' && <WhatsAppInboxPage />}
-            {page === 'whatsapp-importer' && <WhatsAppImporterPage customers={customers} rows={rows} />}
             {page === 'drive-photo-linker' && <DrivePhotoLinkerPage rows={rows} onShowToast={showToast} />}
             {page === 'sales-target' && <SalesTargetPage customers={customers} rows={rows} theme={theme} />}
             {page === 'activity-log' && <ActivityLogPage theme={theme} />}
@@ -1110,11 +1102,6 @@ export default function App() {
               <BundleRecommenderPage
                 customers={customers}
                 rows={rows}
-              />
-            )}
-            {page === 'chat-history' && (
-              <ChatImportPage
-                customers={customers}
               />
             )}
           </Suspense>
