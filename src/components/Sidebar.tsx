@@ -117,9 +117,9 @@ export default function Sidebar({ page, onNavigate, totalCustomers, totalOrders,
                 )}
                 {stringBadge && (
                   <span style={{
-                    marginLeft: 'auto', fontSize: 9, fontWeight: 800,
-                    background: 'linear-gradient(90deg,#7c3aed,#06b6d4)',
-                    color: 'white', padding: '1px 5px', borderRadius: 4,
+                    marginLeft: 'auto', fontSize: 9, fontWeight: 700,
+                    background: 'var(--text-primary)',
+                    color: 'var(--bg-primary)', padding: '2px 6px', borderRadius: 4,
                     letterSpacing: '0.3px',
                   }}>
                     {stringBadge}

@@ -6,62 +6,62 @@
 ═══════════════════════════════════════════════════════════ */
 :root {
   /* Backgrounds */
-  --bg-primary: #F9F9F9;
+  --bg-primary: #F1F5F9;
   --bg-secondary: #FFFFFF;
-  --bg-tertiary: #F3F4F6;
+  --bg-tertiary: #F8FAFC;
   --bg-card: #FFFFFF;
-  --bg-card-hover: #F9FAFB;
+  --bg-card-hover: #F8FAFC;
   --bg-input: #FFFFFF;
-  --bg-header: #017E84;
+  --bg-header: #0F172A;
   
   /* Topbar specific */
-  --bg-topbar: #017E84;
-  --text-topbar: #FFFFFF;
+  --bg-topbar: #FFFFFF;
+  --text-topbar: #0F172A;
 
-  /* Odoo Enterprise Teal Palette */
-  --gradient-brand: #017E84;
-  --gradient-brand-soft: rgba(1, 126, 132, 0.12);
-  --gradient-warm: linear-gradient(135deg, #F59E0B, #EF4444);
-  --gradient-cool: linear-gradient(135deg, #017E84, #00A09D);
-  --gradient-green: linear-gradient(135deg, #10B981, #059669);
+  /* Corporate Slate Palette */
+  --gradient-brand: #0F172A;
+  --gradient-brand-soft: rgba(15, 23, 42, 0.12);
+  --gradient-warm: #0F172A;
+  --gradient-cool: #1E293B;
+  --gradient-green: #0F172A;
 
   /* Accent Colors */
-  --accent-purple: #714B67; /* Odoo Community Purple */
-  --accent-indigo: #4F46E5;
-  --accent-blue: #017E84;
-  --accent-cyan: #06B6D4;
-  --accent-green: #10B981;
-  --accent-amber: #F59E0B;
-  --accent-red: #EF4444;
-  --accent-pink: #EC4899;
+  --accent-purple: #334155;
+  --accent-indigo: #475569;
+  --accent-blue: #0F172A;
+  --accent-cyan: #1E293B;
+  --accent-green: #059669;
+  --accent-amber: #D97706;
+  --accent-red: #DC2626;
+  --accent-pink: #64748B;
 
   /* Typography */
-  --text-primary: #111827;
-  --text-secondary: #374151;
-  --text-muted: #6B7280;
-  --text-accent: #017E84;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --text-accent: #0F172A;
 
   /* Borders */
-  --border: #E5E7EB;
-  --border-hover: #D1D5DB;
+  --border: #E2E8F0;
+  --border-hover: #CBD5E1;
 
-  /* Shadows — Odoo style clean+subtle */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.08);
-  --shadow-glow: 0 0 0 2px rgba(1, 126, 132, 0.2);
+  /* Shadows — Corporate crisp */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 0 1px rgba(15, 23, 42, 0.1);
 
   /* Layout */
   --sidebar-width: 250px;
-  --header-height: 48px; /* Odoo topbars are typically slimmer */
-  --border-radius: 8px; /* Odoo prefers sharper borders */
-  --border-radius-sm: 6px;
+  --header-height: 48px;
+  --border-radius: 4px;
+  --border-radius-sm: 2px;
   --transition: all 0.15s ease-in-out;
 
   /* RFM Cards Light */
-  --rfm-champions-bg: rgba(1, 126, 132, 0.06);
-  --rfm-champions-border: rgba(1, 126, 132, 0.2);
-  --rfm-champions-color: #017E84;
+  --rfm-champions-bg: rgba(15, 23, 42, 0.06);
+  --rfm-champions-border: rgba(15, 23, 42, 0.2);
+  --rfm-champions-color: #0F172A;
   
   --rfm-atrisk-bg: rgba(245, 158, 11, 0.08);
   --rfm-atrisk-border: rgba(245, 158, 11, 0.25);
@@ -2849,9 +2849,7 @@ select.form-input {
   color: var(--text-primary);
 }
 .gradient-text {
-  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text-primary);
   display: inline-block;
 }
 .empty-state-card {
@@ -2862,8 +2860,8 @@ select.form-input {
   padding: 48px 24px;
   text-align: center;
   background: var(--bg-card);
-  border-radius: 16px;
-  border: 2px dashed var(--border);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border);
   gap: 16px;
   box-shadow: var(--shadow-sm);
 }
@@ -2880,11 +2878,12 @@ select.form-input {
 .premium-header-icon {
   width: 56px;
   height: 56px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(1,126,132,0.1), rgba(113,75,103,0.1));
+  border-radius: var(--border-radius);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-blue);
+  color: var(--text-primary);
   flex-shrink: 0;
 }
