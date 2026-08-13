@@ -110,7 +110,7 @@ export default function Sidebar({ page, onNavigate, totalCustomers, totalOrders,
                   marginBottom: 4,
                 } : undefined}
               >
-                <Icon size={17} className="nav-icon" style={item.group === 'AI_MIND' ? { color: '#7c3aed' } : undefined} />
+                <Icon size={16} className="nav-icon" style={item.group === 'AI_MIND' ? { color: '#7c3aed' } : undefined} />
                 {item.label}
                 {badge !== undefined && badge > 0 && (
                   <span className="nav-badge">{badge}</span>
