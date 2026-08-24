@@ -343,13 +343,34 @@ export default React.memo(function CustomersPage({
                                 ) : null}
                               </div>
                               {(() => {
-                                const ltvLabel = c.totalSpend > 20000000 ? '🔥 High LTV' : c.totalSpend > 5000000 ? '📈 Med LTV' : null;
+                                const ltvLabel = c.totalSpend > 20000000 ? 'High LTV' : c.totalSpend > 5000000 ? 'Med LTV' : null;
+                                const tier = calcLoyalty(c).tier;
                                 return (
                                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
-                                    <span className="badge-customer-vip" style={{ fontSize: 9, padding: '1px 5px', background: calcLoyalty(c).tier === 'VIP' ? 'linear-gradient(135deg, #FFD700, #FDB931)' : 'var(--bg-secondary)', color: calcLoyalty(c).tier === 'VIP' ? 'black' : 'var(--text-primary)' }}>
-                                      {calcLoyalty(c).tierEmoji} {calcLoyalty(c).tier}
+                                    <span style={{ 
+                                      fontSize: 9.5, 
+                                      padding: '1px 5px', 
+                                      borderRadius: 2,
+                                      fontWeight: 600,
+                                      background: tier === 'VIP' ? '#FEF3C7' : tier === 'Gold' ? '#FEF9C3' : '#F1F5F9', 
+                                      color: tier === 'VIP' ? '#92400E' : tier === 'Gold' ? '#854D0E' : '#475569',
+                                      border: tier === 'VIP' ? '1px solid #FDE68A' : '1px solid #E2E8F0'
+                                    }}>
+                                      {calcLoyalty(c).tierEmoji} {tier}
                                     </span>
-                                    {ltvLabel && <span className="badge-customer-loyal" style={{ fontSize: 9, padding: '1px 5px', background: c.totalSpend > 20000000 ? '#ef4444' : '#f59e0b', color: 'white' }}>{ltvLabel}</span>}
+                                    {ltvLabel && (
+                                      <span style={{ 
+                                        fontSize: 9.5, 
+                                        padding: '1px 5px', 
+                                        borderRadius: 2,
+                                        fontWeight: 600,
+                                        background: '#DCFCE7', 
+                                        color: '#166534',
+                                        border: '1px solid #BBF7D0'
+                                      }}>
+                                        {ltvLabel}
+                                      </span>
+                                    )}
                                   </div>
                                 );
                               })()}

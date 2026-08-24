@@ -814,7 +814,7 @@ export default function App() {
 
       {/* ── ODOO PURPLE APP BAR ───────────────────────── */}
       <header className="odoo-topbar" style={{ 
-        height: 'var(--header-height)', 
+        height: '38px', 
         background: '#714B67', 
         display: 'flex', 
         alignItems: 'center', 
@@ -841,8 +841,8 @@ export default function App() {
               style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.12)' }}
               title="Odoo App Switcher"
             >
-               <Grid size={16} color="#FFFFFF" />
-               <span style={{ fontWeight: 700, fontSize: '14px', letterSpacing: '0.3px', color: '#FFFFFF' }}>
+               <Grid size={14} color="#FFFFFF" />
+               <span style={{ fontWeight: 700, fontSize: '13px', letterSpacing: '0.3px', color: '#FFFFFF' }}>
                  {settings.appName || 'PearlCRM'}
                </span>
             </div>
@@ -866,9 +866,9 @@ export default function App() {
                       background: isActive ? 'rgba(255,255,255,0.2)' : 'transparent',
                       border: 'none',
                       color: '#FFFFFF',
-                      padding: '5px 10px',
+                      padding: '4px 8px',
                       borderRadius: '3px',
-                      fontSize: '13px',
+                      fontSize: '12px',
                       fontWeight: isActive ? 700 : 500,
                       cursor: 'pointer',
                       transition: 'background 0.1s ease',
@@ -883,20 +883,6 @@ export default function App() {
 
          {/* Right: Search, Sync, Notifications & Profile */}
          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Odoo Search Pill */}
-            <div style={{ 
-              background: 'rgba(255,255,255,0.18)', 
-              borderRadius: '4px', 
-              padding: '3px 8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              minWidth: '180px'
-            }} className="hide-on-mobile">
-              <Search size={13} color="rgba(255,255,255,0.85)" />
-              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)' }}>Search or Filter...</span>
-            </div>
-
             {/* Sync Button with spinner */}
             <button
               className="btn"
@@ -909,7 +895,7 @@ export default function App() {
                 color: '#FFFFFF',
                 padding: '4px 8px',
                 borderRadius: '4px',
-                fontSize: '12px',
+                fontSize: '11px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '5px',
@@ -940,7 +926,7 @@ export default function App() {
             <div style={{ position: 'relative' }}>
               <div
                 style={{
-                  width: 26, height: 26, borderRadius: '4px', background: 'rgba(255,255,255,0.25)',
+                  width: 24, height: 24, borderRadius: '4px', background: 'rgba(255,255,255,0.25)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '11px', fontWeight: 700, cursor: 'pointer', color: '#FFFFFF'
                 }}
@@ -981,7 +967,8 @@ export default function App() {
             padding: '6px 16px', 
             background: '#FFFFFF', 
             borderBottom: '1px solid var(--border)', 
-            minHeight: '44px',
+            height: '36px',
+            minHeight: 'auto',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -990,7 +977,7 @@ export default function App() {
             {/* Left: Breadcrumbs & Action Buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               {/* Odoo Breadcrumb */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
                 <span style={{ color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => handleNavigate('dashboard')}>
                   {['dashboard', 'kanban', 'customers', 'activity-log'].includes(page) ? 'CRM' :
                    ['orders', 'invoice', 'sales-target'].includes(page) ? 'Sales' :
@@ -1019,8 +1006,8 @@ export default function App() {
                     background: '#017E84',
                     borderColor: '#017E84',
                     color: '#FFFFFF',
-                    padding: '4px 10px',
-                    fontSize: '12px',
+                    padding: '3px 8px',
+                    fontSize: '11px',
                     fontWeight: 700,
                     borderRadius: '3px',
                     display: 'flex',
@@ -1043,7 +1030,7 @@ export default function App() {
                 background: '#F8F9FA',
                 border: '1px solid var(--border)',
                 borderRadius: '3px',
-                padding: '4px 10px'
+                padding: '3px 8px'
               }}>
                 <Search size={13} color="var(--text-muted)" />
                 <input
@@ -1055,7 +1042,7 @@ export default function App() {
                     border: 'none',
                     background: 'transparent',
                     outline: 'none',
-                    fontSize: '12px',
+                    fontSize: '11.5px',
                     color: 'var(--text-primary)',
                     width: '100%'
                   }}
@@ -1088,7 +1075,7 @@ export default function App() {
                   title="Kanban View"
                   style={{
                     border: 'none',
-                    padding: '5px 8px',
+                    padding: '4px 7px',
                     background: page === 'kanban' ? '#F1F3F5' : 'transparent',
                     color: page === 'kanban' ? '#714B67' : 'var(--text-muted)',
                     cursor: 'pointer',
@@ -1104,7 +1091,7 @@ export default function App() {
                   style={{
                     border: 'none',
                     borderLeft: '1px solid var(--border)',
-                    padding: '5px 8px',
+                    padding: '4px 7px',
                     background: ['customers', 'orders'].includes(page) ? '#F1F3F5' : 'transparent',
                     color: ['customers', 'orders'].includes(page) ? '#714B67' : 'var(--text-muted)',
                     cursor: 'pointer',
@@ -1120,7 +1107,7 @@ export default function App() {
                   style={{
                     border: 'none',
                     borderLeft: '1px solid var(--border)',
-                    padding: '5px 8px',
+                    padding: '4px 7px',
                     background: page === 'analytics' ? '#F1F3F5' : 'transparent',
                     color: page === 'analytics' ? '#714B67' : 'var(--text-muted)',
                     cursor: 'pointer',
@@ -1136,7 +1123,7 @@ export default function App() {
                   style={{
                     border: 'none',
                     borderLeft: '1px solid var(--border)',
-                    padding: '5px 8px',
+                    padding: '4px 7px',
                     background: page === 'activity-log' ? '#F1F3F5' : 'transparent',
                     color: page === 'activity-log' ? '#714B67' : 'var(--text-muted)',
                     cursor: 'pointer',
