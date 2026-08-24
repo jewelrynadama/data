@@ -158,7 +158,7 @@ export default React.memo(function CustomersPage({
 
   function SortIcon({ col }: { col: SortKey }) {
     if (sortKey !== col) return <span className="sort-arrow">↕</span>;
-    return <span className="sort-arrow" style={{ color: '#1877F2' }}>{sortAsc ? '↑' : '↓'}</span>;
+    return <span className="sort-arrow" style={{ color: 'var(--accent-purple)' }}>{sortAsc ? '↑' : '↓'}</span>;
   }
 
   const pageNums = useMemo(() => {
