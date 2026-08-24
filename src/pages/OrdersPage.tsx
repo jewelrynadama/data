@@ -72,10 +72,11 @@ function FilterDropdown({ label, value, options, onChange, customContent }: Filt
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pending:  { label: '⏳ Pending',  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-  dikirim:  { label: '🚚 Dikirim',  color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
-  selesai:  { label: '✅ Selesai',  color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
-  retur:    { label: '↩️ Retur',    color: '#ef4444', bg: 'rgba(239,68,68,0.12)'  },
+  pending:  { label: 'Pending',   color: '#92400E', bg: '#FEF3C7' },
+  proses:   { label: 'In Progress', color: '#075985', bg: '#E0F2FE' },
+  dikirim:  { label: 'Shipped',   color: '#5B21B6', bg: '#EDE9FE' },
+  selesai:  { label: 'Completed', color: '#166534', bg: '#DCFCE7' },
+  retur:    { label: 'Returned',  color: '#991B1B', bg: '#FEE2E2' },
 };
 
 interface Props {

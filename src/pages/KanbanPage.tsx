@@ -315,20 +315,20 @@ export default function KanbanPage({ rows, customers, settings, onEditOrder }: P
 
                       {/* Action & Move Buttons */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <button className="btn btn-secondary" style={{ fontSize: 10.5, padding: '3px 0', justifyContent: 'center', gap: 4, borderRadius: 3 }} onClick={() => {
+                        <button className="btn btn-secondary" style={{ fontSize: 10.5, padding: '3px 6px', justifyContent: 'center', gap: 4, borderRadius: 3, background: '#FFFFFF' }} onClick={() => {
                           if (cObj) printInvoice(cObj, order, settings);
                           else alert('Customer tidak ditemukan untuk pesanan ini.');
                         }}>
-                          🖨️ Cetak Invoice
+                          Print Invoice
                         </button>
                         <div style={{ display: 'flex', gap: 4 }}>
                         {colIdx > 0 && (
-                          <button className="btn btn-secondary" style={{ flex: 1, fontSize: 10, padding: '3px 0', justifyContent: 'center', gap: 3, borderRadius: 3 }} onClick={() => handleMove(order.id, 'back')}>
+                          <button className="btn btn-secondary" style={{ flex: 1, fontSize: 10, padding: '3px 4px', justifyContent: 'center', gap: 3, borderRadius: 3 }} onClick={() => handleMove(order.id, 'back')}>
                             <ChevronLeft size={11} /> {COLUMNS[colIdx - 1].label}
                           </button>
                         )}
                         {colIdx < COLUMNS.length - 1 && (
-                          <button className="btn btn-primary" style={{ flex: 1, fontSize: 10, padding: '3px 0', justifyContent: 'center', gap: 3, borderRadius: 3, background: '#017E84', borderColor: '#017E84' }} onClick={() => {
+                          <button className="btn btn-primary" style={{ flex: 1, fontSize: 10, padding: '3px 4px', justifyContent: 'center', gap: 3, borderRadius: 3, background: '#017E84', borderColor: '#017E84' }} onClick={() => {
                             if (col.status === 'proses' && COLUMNS[colIdx + 1].status === 'dikirim') {
                               setWaModalOrder(order);
                             } else {
