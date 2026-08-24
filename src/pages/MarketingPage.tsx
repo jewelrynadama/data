@@ -90,14 +90,29 @@ export default function MarketingPage({ customers, rows, settings }: Props) {
 
   const getDaysElapsed = useCallback((dateStr: string): number => {
     if (!dateStr) return 999;
-    const parts = dateStr.split('/');
-    if (parts.length < 3) return 999;
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const year = parseInt(parts[2], 10);
-    const date = new Date(year, month, day);
-    const diffTime = Math.abs(new Date().getTime() - date.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    try {
+      let date: Date | null = null;
+      if (dateStr.includes('/') || dateStr.includes('-')) {
+        const parts = dateStr.split(/[-/]/);
+        if (parts.length === 3) {
+          if (parts[0].length === 4) {
+            // YYYY-MM-DD
+            date = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          } else {
+            // DD/MM/YYYY or DD-MM-YYYY
+            date = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+          }
+        }
+      }
+      if (!date || isNaN(date.getTime())) {
+        date = new Date(dateStr);
+      }
+      if (isNaN(date.getTime())) return 999;
+      const diffTime = Math.abs(Date.now() - date.getTime());
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    } catch {
+      return 999;
+    }
   }, []);
 
   const rfmGroups = useMemo(() => {

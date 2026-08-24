@@ -933,15 +933,6 @@ export default React.memo(function OrdersPage({ rows, searchQuery, onSearchChang
                       <div className="empty-icon">📦</div>
                       <div className="empty-title">No orders found</div>
                       <div className="empty-text">Try adjusting your search or filters</div>
-                      <div style={{ marginTop: 20, fontSize: 11, color: 'red', textAlign: 'left', background: '#fee2e2', padding: 10, borderRadius: 5, maxWidth: 500, margin: '20px auto' }}>
-                        <strong>Debug Info:</strong><br/>
-                        rows.length: {rows.length}<br/>
-                        orderRows.length: {orderRows.length}<br/>
-                        filtered.length: {filtered.length}<br/>
-                        Sampel baris 1: {rows.length > 0 ? JSON.stringify({ nama: rows[0].namaInstagram, jenis: rows[0].jenis }) : 'None'}<br/>
-                        Sampel baris 2: {rows.length > 1 ? JSON.stringify({ nama: rows[1].namaInstagram, jenis: rows[1].jenis }) : 'None'}<br/>
-                        Sampel baris 3: {rows.length > 2 ? JSON.stringify({ nama: rows[2].namaInstagram, jenis: rows[2].jenis }) : 'None'}
-                      </div>
                     </div>
                   </td>
                 </tr>
@@ -1354,7 +1345,7 @@ export default React.memo(function OrdersPage({ rows, searchQuery, onSearchChang
             {/* Scrollable Content */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
               {/* Row 1: 2-Column Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 20 }}>
                 
                 {/* Column A: Pelanggan & Pengiriman */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

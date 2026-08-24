@@ -49,7 +49,7 @@ function getSlaBadge(status: KanbanStatus, dateStr: string) {
   if (!dateStr) return null;
   const time = parseDateStr(dateStr);
   if (isNaN(time)) return null;
-  const now = new Date('2026-07-30T19:00:06+07:00').getTime();
+  const now = Date.now();
   const diffDays = Math.floor((now - time) / 86400000);
   
   if (diffDays < 1) return null;
@@ -176,10 +176,15 @@ export default function KanbanPage({ rows, customers, settings, onEditOrder }: P
         .kanban-grid {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
-          gap: 14px;
+          gap: 12px;
           align-items: start;
         }
-        @media (max-width: 768px) {
+        @media (max-width: 900px) {
+          .kanban-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        @media (max-width: 600px) {
           .kanban-grid {
             grid-template-columns: 1fr;
           }
@@ -187,7 +192,7 @@ export default function KanbanPage({ rows, customers, settings, onEditOrder }: P
       `}</style>
 
       {/* Odoo Kanban Board */}
-      <div className="kanban-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, alignItems: 'start' }}>
+      <div className="kanban-grid">
         {COLUMNS.map((col) => {
           const colRows = columns[col.status];
           const colValue = colRows.reduce((s, r) => s + (parseInt((r.totalBayar || '').replace(/\D/g, ''), 10) || 0), 0);

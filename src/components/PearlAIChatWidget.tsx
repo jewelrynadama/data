@@ -111,21 +111,21 @@ export default function PearlAIChatWidget({ customers }: Props) {
       <style>{`
         .pearl-ai-fab {
           position: fixed;
-          bottom: 24px;
+          bottom: 96px;
           right: 24px;
-          width: 56px;
-          height: 56px;
-          border-radius: 28px;
-          background: linear-gradient(135deg, #7c3aed, #4f46e5);
+          width: 50px;
+          height: 50px;
+          border-radius: 25px;
+          background: linear-gradient(135deg, #714B67, #00A09D);
           color: white;
           border: none;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+          box-shadow: 0 4px 14px rgba(113, 75, 103, 0.4);
           cursor: pointer;
           transition: transform 0.2s, box-shadow 0.2s;
-          z-index: 9999;
+          z-index: 9990;
         }
         .pearl-ai-fab:hover {
           transform: translateY(-4px) scale(1.05);
@@ -301,13 +301,13 @@ export default function PearlAIChatWidget({ customers }: Props) {
 
         @media (max-width: 600px) {
           .pearl-ai-window {
-            bottom: 16px;
-            right: 16px;
-            width: calc(100vw - 32px);
-            height: calc(100vh - 100px);
+            bottom: 60px;
+            right: 12px;
+            width: calc(100vw - 24px);
+            height: calc(100vh - 120px);
           }
           .pearl-ai-fab {
-            bottom: 16px;
+            bottom: 116px;
             right: 16px;
           }
         }

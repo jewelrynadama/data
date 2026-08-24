@@ -186,7 +186,7 @@ export default function JarvisVoiceAI({ customers, rows, settings, setPage }: Pr
   }
 
   return (
-    <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 16 }}>
+    <div className="jarvis-voice-container" style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9995, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 16 }}>
       
       {/* Chat Bubble */}
       {showBubble && (
@@ -286,6 +286,12 @@ export default function JarvisVoiceAI({ customers, rows, settings, setPage }: Pr
         @keyframes slideUp {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @media (max-width: 600px) {
+          .jarvis-voice-container {
+            bottom: 60px !important;
+            right: 16px !important;
+          }
         }
       `}</style>
     </div>

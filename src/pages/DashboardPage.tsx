@@ -268,6 +268,40 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [filteredRows]);
 
+  // ── Top Customers (Respects selected period) ────────────────
+  const topCustomers = useMemo(() => {
+    if (period === 'all') {
+      return [...customers]
+        .sort((a, b) => b.totalSpend - a.totalSpend)
+        .slice(0, 10)
+        .map(c => ({
+          ...c,
+          displaySpend: c.totalSpend,
+          displayOrders: c.orderCount
+        }));
+    }
+    const spendMap: Record<string, { spend: number; count: number }> = {};
+    for (const r of filteredRows) {
+      const name = r.namaInstagram;
+      if (!name) continue;
+      if (!spendMap[name]) spendMap[name] = { spend: 0, count: 0 };
+      spendMap[name].spend += cleanPrice(r.totalBayar);
+      if (r.jenis) spendMap[name].count += 1;
+    }
+    return customers
+      .filter(c => spendMap[c.nama] || (c.instagram && spendMap[c.instagram]))
+      .map(c => {
+        const stats = spendMap[c.nama] || (c.instagram ? spendMap[c.instagram] : null) || { spend: 0, count: 0 };
+        return {
+          ...c,
+          displaySpend: stats.spend,
+          displayOrders: stats.count
+        };
+      })
+      .sort((a, b) => b.displaySpend - a.displaySpend)
+      .slice(0, 10);
+  }, [customers, filteredRows, period]);
+
   const pieColors = ['#7c3aed', '#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
 
   // ── Revenue Prediction (Linear Regression) ─────────────────
@@ -648,10 +682,7 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
                 </tr>
               </thead>
               <tbody>
-                {[...customers]
-                  .sort((a, b) => b.totalSpend - a.totalSpend)
-                  .slice(0, 10)
-                  .map((c, i) => (
+                {topCustomers.map((c, i) => (
                     <tr key={c.id}>
                       <td>
                         <span style={{
@@ -695,9 +726,9 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
                       >
                         {c.city}
                       </td>
-                      <td>{c.orderCount}</td>
-                      <td style={{ color: 'var(--accent-green)', fontWeight: 700 }}>{formatRupiah(c.totalSpend)}</td>
-                      <td>{formatRupiah(c.orderCount > 0 ? c.totalSpend / c.orderCount : 0)}</td>
+                      <td>{c.displayOrders}</td>
+                      <td style={{ color: 'var(--accent-green)', fontWeight: 700 }}>{formatRupiah(c.displaySpend)}</td>
+                      <td>{formatRupiah(c.displayOrders > 0 ? c.displaySpend / c.displayOrders : 0)}</td>
                     </tr>
                   ))}
               </tbody>
@@ -706,10 +737,7 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
 
           {/* Mobile: compact ranked cards */}
           <div className="dash-top-cards">
-            {[...customers]
-              .sort((a, b) => b.totalSpend - a.totalSpend)
-              .slice(0, 10)
-              .map((c, i) => (
+            {topCustomers.map((c, i) => (
                 <div
                   key={c.id}
                   className="dash-top-row"
@@ -725,10 +753,10 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
                   <div className="dash-top-info">
                     <div className="dash-top-name">{c.nama}</div>
                     <div className="dash-top-meta">
-                      {c.city && c.city !== '—' ? `📍 ${c.city}  ·  ` : ''}{c.orderCount} orders
+                      {c.city && c.city !== '—' ? `📍 ${c.city}  ·  ` : ''}{c.displayOrders} orders
                     </div>
                   </div>
-                  <div className="dash-top-spend">{formatRupiah(c.totalSpend)}</div>
+                  <div className="dash-top-spend">{formatRupiah(c.displaySpend)}</div>
                 </div>
               ))}
           </div>

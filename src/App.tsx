@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { 
   RefreshCw, Bell, Menu, Grid, Search, Columns, List, 
-  BarChart2, Calendar, Plus, ChevronRight
+  BarChart2, Calendar, Plus, ChevronRight, LayoutDashboard,
+  Users, ShoppingBag
 } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import PearlAIChatWidget from './components/PearlAIChatWidget';
@@ -951,7 +952,8 @@ export default function App() {
          </div>
       </header>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+        <div className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />
         <Sidebar
           page={page}
           onNavigate={(p) => { handleNavigate(p); setSidebarOpen(false); }}
@@ -1333,6 +1335,45 @@ export default function App() {
         )}
       </div> {/* end main-content */}
     </div> {/* end body wrapper */}
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="mobile-bottom-nav">
+        <button 
+          className={`mobile-bottom-nav-item ${page === 'dashboard' ? 'active' : ''}`}
+          onClick={() => handleNavigate('dashboard')}
+        >
+          <LayoutDashboard size={18} />
+          <span>Home</span>
+        </button>
+        <button 
+          className={`mobile-bottom-nav-item ${page === 'customers' ? 'active' : ''}`}
+          onClick={() => handleNavigate('customers')}
+        >
+          <Users size={18} />
+          <span>Customers</span>
+        </button>
+        <button 
+          className={`mobile-bottom-nav-item ${page === 'orders' ? 'active' : ''}`}
+          onClick={() => handleNavigate('orders')}
+        >
+          <ShoppingBag size={18} />
+          <span>Orders</span>
+        </button>
+        <button 
+          className={`mobile-bottom-nav-item ${page === 'kanban' ? 'active' : ''}`}
+          onClick={() => handleNavigate('kanban')}
+        >
+          <Columns size={18} />
+          <span>Pipeline</span>
+        </button>
+        <button 
+          className="mobile-bottom-nav-item"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+        >
+          <Menu size={18} />
+          <span>Menu</span>
+        </button>
+      </nav>
 
       {/* Smart Notification Center */}
       <NotificationCenter

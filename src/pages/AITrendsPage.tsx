@@ -223,7 +223,7 @@ export default function AITrendsPage({ customers = [], rows = [] }: Props) {
             <Sparkles size={14} color="#fcd34d" /> AI POWERED
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
             <div>
               <h1 style={{ fontSize: 32, fontWeight: 800, margin: '0 0 12px 0', lineHeight: 1.2 }}>Market Trend Radar</h1>
               <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.8)', maxWidth: 600, margin: 0, lineHeight: 1.5 }}>

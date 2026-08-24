@@ -38,6 +38,7 @@ export default function CatalogPage({ catalogItems, rows }: Props) {
   
   // Advanced Filters
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
+  const [showSold, setShowSold] = useState(false);
   const [filterPearlType, setFilterPearlType] = useState<string>('Semua');
   const [filterMinPrice, setFilterMinPrice] = useState<string>('');
   const [filterMaxPrice, setFilterMaxPrice] = useState<string>('');
@@ -245,8 +246,8 @@ export default function CatalogPage({ catalogItems, rows }: Props) {
 
   const displayed = useMemo(() => {
     return catalogItems.filter((p) => {
-      // Only show items that are ready/available in catalog view
-      if (!p.isReady) return false;
+      // By default show ready stock, or show all if showSold is true
+      if (!showSold && !p.isReady) return false;
       
       if (filterCat !== 'Semua') {
         const type = p.tipeBarang?.split(' ')[0] || 'Lainnya';
@@ -265,7 +266,7 @@ export default function CatalogPage({ catalogItems, rows }: Props) {
       
       return true;
     });
-  }, [catalogItems, filterCat, search, filterPearlType, filterGrade, filterMinPrice, filterMaxPrice]);
+  }, [catalogItems, showSold, filterCat, search, filterPearlType, filterGrade, filterMinPrice, filterMaxPrice]);
 
   const activeFiltersCount = (filterPearlType !== 'Semua' ? 1 : 0) + (filterGrade !== 'Semua' ? 1 : 0) + (filterMinPrice ? 1 : 0) + (filterMaxPrice ? 1 : 0);
 
@@ -371,6 +372,14 @@ export default function CatalogPage({ catalogItems, rows }: Props) {
             >
               🔽 Filter Lanjutan 
               {activeFiltersCount > 0 && <span style={{ background: 'var(--accent-purple)', padding: '2px 6px', borderRadius: 10, fontSize: 10, marginLeft: 4, color: 'white' }}>{activeFiltersCount}</span>}
+            </button>
+            <button 
+              onClick={() => setShowSold(!showSold)} 
+              className={`btn ${showSold ? 'btn-primary' : 'btn-secondary'}`} 
+              style={{ fontSize: 12, padding: '6px 12px', borderRadius: 8 }}
+              title="Tampilkan perhiasan yang sudah terjual untuk referensi custom order"
+            >
+              {showSold ? '📦 Termasuk Terjual' : '✨ Stok Ready'}
             </button>
           </div>
           <div style={{ display: 'flex', gap: 8 }} className="no-print">
