@@ -533,60 +533,55 @@ body {
   .page-body { padding: 20px; padding-bottom: 20px; }
 }
 
-/* ── STAT CARDS ──────────────────────────────────── */
+/* ── STAT CARDS (Odoo Enterprise Metric Tiles) ──────────────── */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 14px;
-  margin-bottom: 20px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
-/* Premium stat cards — gradient top bar, hover lift */
 .stat-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 18px;
+  border-radius: var(--border-radius);
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  gap: 8px;
   position: relative;
   overflow: hidden;
   cursor: default;
   box-shadow: var(--shadow-sm);
+  border-top: 3px solid var(--accent-purple);
 }
 
-.stat-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-}
+.stat-card.purple { border-top-color: var(--accent-purple); }
+.stat-card.green { border-top-color: #21B799; }
+.stat-card.amber { border-top-color: #F0AD4E; }
+.stat-card.cyan { border-top-color: #017E84; }
+.stat-card.pink { border-top-color: #D9534F; }
 
 .stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: transform 0.2s ease;
 }
 
-.stat-card:hover .stat-icon {
-  transform: scale(1.08);
-}
-
-.stat-icon.purple { background: rgba(1, 126, 132,0.12); color: #017E84; }
-.stat-icon.green { background: rgba(66,183,42,0.12); color: #42B72A; }
-.stat-icon.amber { background: rgba(247,185,40,0.12); color: #C5870A; }
-.stat-icon.cyan { background: rgba(0,176,255,0.12); color: #00B0FF; }
-.stat-icon.pink { background: rgba(228,30,63,0.12); color: #E41E3F; }
+.stat-icon.purple { background: rgba(113, 75, 103, 0.1); color: var(--accent-purple); }
+.stat-icon.green { background: rgba(33, 183, 153, 0.1); color: #21B799; }
+.stat-icon.amber { background: rgba(240, 173, 78, 0.12); color: #D97706; }
+.stat-icon.cyan { background: rgba(1, 126, 132, 0.1); color: #017E84; }
+.stat-icon.pink { background: rgba(217, 83, 79, 0.1); color: #D9534F; }
 
 .stat-info { flex: 1; min-width: 0; width: 100%; }
-.stat-label { font-size: 12px; color: var(--text-muted); font-weight: 500; margin-bottom: 4px; }
-.stat-value { font-size: 22px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; line-height: 1.1; }
+.stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+.stat-value { font-size: 20px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.2px; line-height: 1.15; }
 .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 
 /* ── CHARTS GRID ────────────────────────────────── */
@@ -601,26 +596,22 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--border-radius);
-  overflow: visible;
-  transition: none;
-  box-shadow: none;
-}
-
-.card:hover {
-  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 10px 14px;
+  background: #F8F9FA;
   border-bottom: 1px solid var(--border);
 }
 
-.card-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-.card-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; font-weight: 400; }
-.card-body { padding: 16px; }
+.card-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.card-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 1px; font-weight: 400; }
+.card-body { padding: 14px; }
 
 /* ── DASHBOARD TOP CUSTOMERS ───────────────────────── */
 .dash-top-cards {
@@ -1032,44 +1023,42 @@ select.form-input {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 14px;
+  padding: 5px 12px;
+  border-radius: var(--border-radius-sm);
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
-  line-height: 1.3;
-}
-.btn:active {
-  transform: scale(0.97);
+  transition: var(--transition);
+  border: 1px solid transparent;
+  line-height: 1.2;
 }
 
 .btn-primary {
-  background: #017E84;
+  background: var(--accent-blue);
   color: white;
-  box-shadow: 0 2px 8px rgba(1, 126, 132,0.3);
+  border: 1px solid var(--accent-blue);
+  box-shadow: none;
 }
 .btn-primary:hover {
   background: #006C70;
-  box-shadow: 0 4px 12px rgba(1, 126, 132,0.4);
-  transform: translateY(-1px);
+  border-color: #006C70;
+  box-shadow: none;
 }
 
 .btn-secondary {
-  background: var(--bg-tertiary);
+  background: #FFFFFF;
   border: 1px solid var(--border);
   color: var(--text-primary);
 }
 .btn-secondary:hover {
-  background: var(--border);
-  transform: translateY(-1px);
+  background: var(--bg-tertiary);
+  border-color: var(--border-hover);
 }
 
 .table-wrapper { 
   overflow-x: auto; 
   max-width: 100%;
-  border-radius: 12px;
+  border-radius: var(--border-radius);
 }
 
 .data-table { 
@@ -1078,60 +1067,62 @@ select.form-input {
   text-align: left;
 }
 
-.data-table th, .data-table td { padding: 12px 16px; 
+.data-table th, .data-table td { 
+  padding: 8px 12px; 
   border-bottom: 1px solid var(--border); 
   max-width: 300px; 
   overflow: hidden; 
   text-overflow: ellipsis; 
 }
 
-.data-table thead th { background: var(--bg-tertiary);
+.data-table thead th { 
+  background: #F8F9FA;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
-  padding: 12px 16px;
+  letter-spacing: 0.5px;
+  padding: 8px 12px;
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
-  transition: color 0.15s, background 0.15s;
-  border-bottom: 2px solid var(--border);
+  transition: color 0.12s, background 0.12s;
+  border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   z-index: 2;
 }
 
-.data-table thead th:hover { color: var(--text-primary); background: var(--bg-card-hover); }
-.data-table thead th.sorted { color: #017E84; }
-.data-table thead th.filtered-active { color: #017E84; background: rgba(1, 126, 132, 0.06); }
+.data-table thead th:hover { color: var(--text-primary); background: #E9ECEF; }
+.data-table thead th.sorted { color: var(--accent-purple); }
+.data-table thead th.filtered-active { color: var(--accent-blue); background: rgba(1, 126, 132, 0.06); }
 .filtered-active .th-inner { font-weight: 700; }
 .filtered-active .sort-arrow { opacity: 1; }
 
 .th-inner { display: flex; align-items: center; gap: 4px; }
-.sort-arrow { font-size: 9px; opacity: 0.3; transition: opacity 0.15s; }
-.sorted .sort-arrow { opacity: 1; color: #017E84; }
+.sort-arrow { font-size: 9px; opacity: 0.4; transition: opacity 0.15s; }
+.sorted .sort-arrow { opacity: 1; color: var(--accent-purple); }
 
 .data-table tbody tr {
   border-bottom: 1px solid var(--border);
-  transition: background 0.15s ease;
+  transition: background 0.1s ease;
 }
 
-.data-table tbody tr:hover { background: var(--bg-card-hover); cursor: pointer; }
+.data-table tbody tr:hover { background: #F8F9FA; cursor: pointer; }
 .data-table tbody tr:hover td {
   color: var(--text-primary);
 }
 .data-table tbody tr:last-child { border-bottom: none; }
 
-.data-table tbody td { padding: 12px 16px;
+.data-table tbody td { 
+  padding: 8px 12px;
   color: var(--text-secondary);
   white-space: nowrap;
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: color 0.15s;
-  font-size: 13px;
+  font-size: 12.5px;
 }
 
 .data-table tbody td.td-name {

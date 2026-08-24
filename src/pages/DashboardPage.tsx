@@ -322,32 +322,31 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
       {/* Birthday Alerts */}
       <BirthdayBanner alerts={birthdayAlerts} settings={settings} onSelectCustomer={onSelectCustomer} />
 
-      {/* ── Global Period Filter Bar ────────────────────────── */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, marginRight: 4 }}>📅 Periode:</span>
+      {/* ── Global Period Filter Bar (Odoo Faceted Control) ────────────── */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', marginRight: 4 }}>Period:</span>
         {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
           <button
             key={p}
             onClick={() => setPeriod(p)}
             style={{
-              padding: '5px 12px',
-              borderRadius: 20,
-              border: 'none',
+              padding: '3px 10px',
+              borderRadius: '3px',
+              border: period === p ? '1px solid var(--accent-purple)' : '1px solid var(--border)',
               cursor: 'pointer',
               fontSize: 12,
               fontWeight: period === p ? 700 : 500,
-              background: period === p ? 'var(--accent-purple)' : 'var(--bg-card)',
+              background: period === p ? 'var(--accent-purple)' : '#FFFFFF',
               color: period === p ? '#fff' : 'var(--text-secondary)',
-              boxShadow: period === p ? '0 2px 8px rgba(124,58,237,0.3)' : 'none',
-              transition: 'all 0.15s ease',
+              transition: 'all 0.12s ease',
             }}
           >
             {PERIOD_LABELS[p]}
           </button>
         ))}
         {period !== 'all' && (
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>
-            → {filteredRows.filter(r => r.jenis).length} order · {filteredCustomers.length} customer aktif
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>
+            ({filteredRows.filter(r => r.jenis).length} orders · {filteredCustomers.length} active customers)
           </span>
         )}
       </div>
@@ -355,37 +354,37 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
       {/* Stats */}
       <div className="stats-grid">
         <div className="stat-card purple">
-          <div className="stat-icon purple"><Users size={20} /></div>
+          <div className="stat-icon purple"><Users size={16} /></div>
           <div className="stat-info">
-            <div className="stat-label">{period === 'all' ? 'Total Customers' : 'Customer Aktif'}</div>
+            <div className="stat-label">{period === 'all' ? 'Total Customers' : 'Active Customers'}</div>
             <div className="stat-value">{period === 'all' ? customers.length : filteredCustomers.length}</div>
-            <div className="stat-sub">{period === 'all' ? 'Unique accounts' : `dari ${customers.length} total`}</div>
+            <div className="stat-sub">{period === 'all' ? 'Registered accounts' : `out of ${customers.length} total`}</div>
           </div>
         </div>
         <div className="stat-card green">
-          <div className="stat-icon green"><ShoppingBag size={20} /></div>
+          <div className="stat-icon green"><ShoppingBag size={16} /></div>
           <div className="stat-info">
             <div className="stat-label">Total Orders</div>
             <div className="stat-value" style={{ display: 'flex', alignItems: 'center' }}>
               {totalOrders}
               {trendBadge(currentMonthOrders, prevMonthOrders)}
             </div>
-            <div className="stat-sub">Product items · bulan ini: {currentMonthOrders}</div>
+            <div className="stat-sub">This month: {currentMonthOrders} orders</div>
           </div>
         </div>
         <div className="stat-card amber">
-          <div className="stat-icon amber"><TrendingUp size={20} /></div>
+          <div className="stat-icon amber"><TrendingUp size={16} /></div>
           <div className="stat-info">
             <div className="stat-label">Total Revenue</div>
             <div className="stat-value" style={{ display: 'flex', alignItems: 'center' }}>
               {formatRupiah(totalRevenue)}
               {trendBadge(currentMonthRevenue, prevMonthRevenue)}
             </div>
-            <div className="stat-sub">Bulan ini: {formatRupiah(currentMonthRevenue)}</div>
+            <div className="stat-sub">This month: {formatRupiah(currentMonthRevenue)}</div>
           </div>
         </div>
         <div className="stat-card cyan">
-          <div className="stat-icon cyan"><Award size={20} /></div>
+          <div className="stat-icon cyan"><Award size={16} /></div>
           <div className="stat-info">
             <div className="stat-label">Avg Order Value</div>
             <div className="stat-value">{formatRupiah(avgOrder)}</div>
@@ -393,12 +392,12 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
           </div>
         </div>
         <div className="stat-card pink">
-          <div className="stat-icon pink"><TrendingUp size={20} /></div>
+          <div className="stat-icon pink"><TrendingUp size={16} /></div>
           <div className="stat-info">
-            <div className="stat-label">Sales Goal (Bulan Ini)</div>
+            <div className="stat-label">Monthly Target</div>
             <div className="stat-value">{formatRupiah(currentMonthRevenue)}</div>
             <div className="stat-sub" style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
-              <span>Target:</span>
+              <span>Goal:</span>
               {isEditingGoal ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <span style={{ fontSize: 11 }}>Rp</span>
@@ -412,10 +411,10 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
                       if (e.key === 'Escape') setIsEditingGoal(false);
                     }}
                     style={{
-                      width: 90, background: 'var(--bg-card-hover)',
-                      border: '1px solid #1877F2', borderRadius: 4,
+                      width: 90, background: '#FFFFFF',
+                      border: '1px solid var(--accent-purple)', borderRadius: 3,
                       color: 'var(--text-primary)', fontSize: 11, padding: '2px 6px', outline: 'none',
-                      boxShadow: '0 0 0 2px rgba(24,119,242,0.2)'
+                      boxShadow: '0 0 0 2px rgba(113,75,103,0.15)'
                     }}
                     autoFocus
                   />
@@ -432,53 +431,37 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
               )}
             </div>
 
-            {/* Enhanced Progress bar with color milestones */}
+            {/* Progress bar */}
             {(() => {
               const pct = Math.min(100, (currentMonthRevenue / salesGoal) * 100);
               const proj = getRevenueProjection(currentMonthRevenue, salesGoal);
               const barColor =
-                pct >= 100 ? 'linear-gradient(90deg,#7c3aed,#4f46e5)' :
-                pct >= 75  ? 'linear-gradient(90deg,#059669,#10b981)' :
-                pct >= 50  ? 'linear-gradient(90deg,#d97706,#f59e0b)' :
-                pct >= 25  ? 'linear-gradient(90deg,#2563eb,#06b6d4)' :
-                             'linear-gradient(90deg,#475569,#64748b)';
-              const glowColor =
-                pct >= 100 ? 'rgba(124,58,237,0.4)' :
-                pct >= 75  ? 'rgba(16,185,129,0.35)' :
-                pct >= 50  ? 'rgba(245,158,11,0.35)' :
-                             'rgba(37,99,235,0.25)';
+                pct >= 100 ? '#21B799' :
+                pct >= 75  ? '#017E84' :
+                pct >= 50  ? '#F0AD4E' :
+                pct >= 25  ? '#3B82F6' : '#64748B';
               return (
-                <div style={{ width: '100%', marginTop: 10 }}>
-                  {/* Percentage + milestone markers */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginBottom: 5 }}>
-                    <span>Pencapaian</span>
-                    <span style={{ fontWeight: 700, color: pct >= 100 ? '#a78bfa' : pct >= 75 ? '#10b981' : pct >= 50 ? '#f59e0b' : 'var(--accent-pink)' }}>
-                      {Math.round(pct)}%
-                    </span>
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: barColor, transition: 'width 0.4s ease' }} />
                   </div>
-                  {/* Progress track */}
-                  <div style={{ height: 7, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative' }}>
-                    {/* Milestone ticks */}
-                    {[25, 50, 75].map((m) => (
-                      <div key={m} style={{ position: 'absolute', top: 0, bottom: 0, left: `${m}%`, width: 1, background: 'rgba(255,255,255,0.12)', zIndex: 1 }} />
-                    ))}
-                    <div style={{ height: '100%', background: barColor, width: `${pct}%`, borderRadius: 99, boxShadow: `0 0 8px ${glowColor}`, transition: 'width 0.9s cubic-bezier(0.4,0,0.2,1)', position: 'relative', zIndex: 2 }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                    <span>{pct.toFixed(0)}% achieved</span>
+                    {proj && <span>Proj: {formatRupiah(proj.projectedTotal)}</span>}
                   </div>
-                  {/* Projection info */}
-                  <div style={{ marginTop: 7, fontSize: 10.5, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <span>Avg harian: <strong style={{ color: 'var(--text-secondary)' }}>{formatRupiah(Math.round(proj.dailyAvg))}</strong></span>
-                    {proj.projectedDate && (
-                      <span>
-                        {currentMonthRevenue >= salesGoal
-                          ? <span style={{ color: '#10b981', fontWeight: 700 }}>🎉 Target sudah tercapai!</span>
-                          : <span>Proyeksi tercapai: <strong style={{ color: proj.isAtRisk ? '#ef4444' : '#a78bfa' }}>{proj.projectedDate}</strong></span>
-                        }
-                      </span>
-                    )}
-                    {proj.isAtRisk && currentMonthRevenue < salesGoal && (
-                      <span style={{ color: '#ef4444', fontWeight: 700 }}>⚠️ Hanya {proj.daysRemaining} hari lagi — perlu akselerasi!</span>
-                    )}
-                  </div>
+                </div>
+              );
+            })()}
+            {/* Progress projection info */}
+            {(() => {
+              const proj = getRevenueProjection(currentMonthRevenue, salesGoal);
+              if (!proj) return null;
+              return (
+                <div style={{ marginTop: 6, fontSize: 10.5, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span>Daily Avg: <strong style={{ color: 'var(--text-secondary)' }}>{formatRupiah(Math.round(proj.dailyAvg))}</strong></span>
+                  {proj.isAtRisk && currentMonthRevenue < salesGoal && (
+                    <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>{proj.daysRemaining} days left</span>
+                  )}
                 </div>
               );
             })()}
