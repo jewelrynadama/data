@@ -1008,7 +1008,6 @@ export default function App() {
                   className="btn btn-primary"
                   onClick={() => {
                     if (['customers'].includes(page)) {
-                      // Customers page handles its own modal or navigate
                       handleNavigate('customers');
                     } else if (['orders', 'kanban'].includes(page)) {
                       handleNavigate('orders');
@@ -1032,6 +1031,41 @@ export default function App() {
                   <Plus size={13} />
                   <span>NEW</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Center: Odoo Control Panel Search Bar */}
+            <div style={{ flex: 1, maxWidth: 360, margin: '0 12px' }} className="hide-on-mobile">
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: '#F8F9FA',
+                border: '1px solid var(--border)',
+                borderRadius: '3px',
+                padding: '4px 10px'
+              }}>
+                <Search size={13} color="var(--text-muted)" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search records, customers, orders..."
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    outline: 'none',
+                    fontSize: '12px',
+                    color: 'var(--text-primary)',
+                    width: '100%'
+                  }}
+                />
+                {searchQuery && (
+                  <span 
+                    onClick={() => setSearchQuery('')} 
+                    style={{ cursor: 'pointer', fontSize: '11px', color: 'var(--text-muted)' }}
+                  >✕</span>
+                )}
               </div>
             </div>
 
