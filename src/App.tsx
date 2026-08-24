@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
-import { RefreshCw, Bell, Menu, Grid, Search } from 'lucide-react';
+import { 
+  RefreshCw, Bell, Menu, Grid, Search, Columns, List, 
+  BarChart2, Calendar, Plus, ChevronRight
+} from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import PearlAIChatWidget from './components/PearlAIChatWidget';
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -809,44 +812,115 @@ export default function App() {
         onClick={() => setSidebarOpen(false)}
       />
 
+      {/* ── ODOO PURPLE APP BAR ───────────────────────── */}
       <header className="odoo-topbar" style={{ 
         height: 'var(--header-height)', 
-        background: 'var(--bg-topbar)', 
+        background: '#714B67', 
         display: 'flex', 
         alignItems: 'center', 
-        padding: '0 16px',
-        color: 'var(--text-topbar)',
+        padding: '0 12px',
+        color: '#FFFFFF',
         justifyContent: 'space-between',
         flexShrink: 0,
-        zIndex: 1000
+        zIndex: 1000,
+        borderBottom: '1px solid rgba(0,0,0,0.1)'
       }}>
-         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+         {/* Left: Odoo App Switcher & Top Level Modules */}
+         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button 
               className="mobile-menu-btn" 
               onClick={() => setSidebarOpen(true)}
-              style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
             >
-              <Menu size={20} />
+              <Menu size={18} />
             </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-               <Grid size={18} />
-               <span style={{ fontWeight: 600, fontSize: '15px', letterSpacing: '0.2px' }}>{settings.appName || 'CRM'}</span>
+
+            {/* Odoo 9-dots Grid App Switcher */}
+            <div 
+              onClick={() => handleNavigate('dashboard')}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.12)' }}
+              title="Odoo App Switcher"
+            >
+               <Grid size={16} color="#FFFFFF" />
+               <span style={{ fontWeight: 700, fontSize: '14px', letterSpacing: '0.3px', color: '#FFFFFF' }}>
+                 {settings.appName || 'PearlCRM'}
+               </span>
+            </div>
+
+            {/* Odoo Top Level Module Nav Tabs */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginLeft: '6px' }} className="hide-on-mobile">
+              {[
+                { id: 'crm', label: 'CRM', target: 'kanban', activeFor: ['dashboard', 'kanban', 'customers', 'activity-log'] },
+                { id: 'sales', label: 'Sales', target: 'orders', activeFor: ['orders', 'invoice', 'sales-target'] },
+                { id: 'inventory', label: 'Inventory', target: 'catalog', activeFor: ['catalog', 'inventory'] },
+                { id: 'marketing', label: 'Marketing', target: 'marketing', activeFor: ['marketing', 'ads-manager', 'chat-history', 'whatsapp-importer', 'drive-photo-linker'] },
+                { id: 'reporting', label: 'Reporting', target: 'analytics', activeFor: ['analytics', 'rfm-analytics', 'finance-analytics', 'birthday', 'reports'] },
+                { id: 'config', label: 'Configuration', target: 'settings', activeFor: ['settings', 'export'] },
+              ].map((m) => {
+                const isActive = m.activeFor.includes(page);
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => handleNavigate(m.target)}
+                    style={{
+                      background: isActive ? 'rgba(255,255,255,0.2)' : 'transparent',
+                      border: 'none',
+                      color: '#FFFFFF',
+                      padding: '5px 10px',
+                      borderRadius: '3px',
+                      fontSize: '13px',
+                      fontWeight: isActive ? 700 : 500,
+                      cursor: 'pointer',
+                      transition: 'background 0.1s ease',
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
             </div>
          </div>
-         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+
+         {/* Right: Search, Sync, Notifications & Profile */}
+         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Odoo Search Pill */}
             <div style={{ 
-              background: 'rgba(255,255,255,0.15)', 
+              background: 'rgba(255,255,255,0.18)', 
               borderRadius: '4px', 
-              padding: '4px 10px',
+              padding: '3px 8px',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              minWidth: '200px'
+              minWidth: '180px'
             }} className="hide-on-mobile">
-              <Search size={14} color="rgba(255,255,255,0.8)" />
-              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)' }}>Search...</span>
+              <Search size={13} color="rgba(255,255,255,0.85)" />
+              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)' }}>Search or Filter...</span>
             </div>
 
+            {/* Sync Button with spinner */}
+            <button
+              className="btn"
+              onClick={() => loadData(true)}
+              disabled={refreshing}
+              title="Sync Real-time Cloud"
+              style={{
+                background: 'rgba(255,255,255,0.15)',
+                border: 'none',
+                color: '#FFFFFF',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                cursor: 'pointer'
+              }}
+            >
+              <RefreshCw size={13} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} />
+              <span className="hide-on-mobile">{refreshing ? 'Syncing...' : 'Sync'}</span>
+            </button>
+
+            {/* Notification Bell */}
             <button
               onClick={() => setNotifOpen(true)}
               style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'center', padding: '4px' }}
@@ -855,19 +929,20 @@ export default function App() {
               <Bell size={16} />
               {unreadCount > 0 && (
                 <span style={{
-                  position: 'absolute', top: -2, right: -4, background: '#ef4444', color: 'white', fontSize: '9px', fontWeight: 800, padding: '1px 4px', borderRadius: '10px'
+                  position: 'absolute', top: -2, right: -4, background: '#D9534F', color: 'white', fontSize: '9px', fontWeight: 800, padding: '1px 4px', borderRadius: '10px'
                 }}>
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
             </button>
 
+            {/* User Avatar Dropdown */}
             <div style={{ position: 'relative' }}>
               <div
                 style={{
-                  width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.2)',
+                  width: 26, height: 26, borderRadius: '4px', background: 'rgba(255,255,255,0.25)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '12px', fontWeight: 700, cursor: 'pointer'
+                  fontSize: '11px', fontWeight: 700, cursor: 'pointer', color: '#FFFFFF'
                 }}
                 onClick={(e) => { e.stopPropagation(); setShowAdminDropdown(!showAdminDropdown); }}
               >
@@ -875,15 +950,15 @@ export default function App() {
               </div>
               {showAdminDropdown && (
                 <div style={{
-                  position: 'absolute', right: 0, top: 36, width: 180, background: 'var(--bg-card)',
+                  position: 'absolute', right: 0, top: 32, width: 180, background: '#FFFFFF',
                   border: '1px solid var(--border)', borderRadius: 'var(--border-radius)', boxShadow: 'var(--shadow-md)',
-                  zIndex: 1000, padding: '6px 0', color: 'var(--text-primary)'
+                  zIndex: 1000, padding: '4px 0', color: 'var(--text-primary)'
                 }}>
-                  <div style={{ padding: '8px 14px', fontSize: '11px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
-                    Store: <strong>{settings.storeName}</strong>
+                  <div style={{ padding: '6px 12px', fontSize: '11px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', marginBottom: '2px' }}>
+                    Company: <strong>{settings.storeName}</strong>
                   </div>
-                  <button onClick={() => { handleNavigate('settings'); setShowAdminDropdown(false); }} style={{ width: '100%', padding: '8px 14px', fontSize: '13px', textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>Settings</button>
-                  <button onClick={handleLogout} style={{ width: '100%', padding: '8px 14px', fontSize: '13px', textAlign: 'left', background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer' }}>Logout</button>
+                  <button onClick={() => { handleNavigate('settings'); setShowAdminDropdown(false); }} style={{ width: '100%', padding: '6px 12px', fontSize: '12px', textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>Preferences / Settings</button>
+                  <button onClick={handleLogout} style={{ width: '100%', padding: '6px 12px', fontSize: '12px', textAlign: 'left', background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer' }}>Logout</button>
                 </div>
               )}
             </div>
@@ -900,25 +975,144 @@ export default function App() {
           onClose={() => setSidebarOpen(false)}
         />
         <div className="main-content" style={{ overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <div className="top-header" style={{ padding: '8px 16px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', minHeight: '50px' }}>
-            <div className="header-left">
-              <div>
-                <div className="page-title" style={{ fontSize: '18px', color: 'var(--text-primary)' }}>{title}</div>
-                {subtitle && <div className="page-subtitle" style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{subtitle}</div>}
+          
+          {/* ── ODOO CONTROL PANEL (Breadcrumbs & View Switchers) ───────── */}
+          <div className="top-header" style={{ 
+            padding: '6px 16px', 
+            background: '#FFFFFF', 
+            borderBottom: '1px solid var(--border)', 
+            minHeight: '44px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px'
+          }}>
+            {/* Left: Breadcrumbs & Action Buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              {/* Odoo Breadcrumb */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
+                <span style={{ color: 'var(--text-muted)', cursor: 'pointer' }} onClick={() => handleNavigate('dashboard')}>
+                  {['dashboard', 'kanban', 'customers', 'activity-log'].includes(page) ? 'CRM' :
+                   ['orders', 'invoice', 'sales-target'].includes(page) ? 'Sales' :
+                   ['catalog', 'inventory'].includes(page) ? 'Inventory' :
+                   ['marketing', 'ads-manager', 'chat-history', 'whatsapp-importer', 'drive-photo-linker'].includes(page) ? 'Marketing' :
+                   ['analytics', 'rfm-analytics', 'finance-analytics', 'birthday', 'reports'].includes(page) ? 'Reporting' : 'Configuration'}
+                </span>
+                <ChevronRight size={13} color="var(--text-muted)" />
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }} title={subtitle}>{title}</span>
+              </div>
+
+              {/* Odoo NEW / CREATE Button */}
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    if (['customers'].includes(page)) {
+                      // Customers page handles its own modal or navigate
+                      handleNavigate('customers');
+                    } else if (['orders', 'kanban'].includes(page)) {
+                      handleNavigate('orders');
+                    } else {
+                      handleNavigate('kanban');
+                    }
+                  }}
+                  style={{
+                    background: '#017E84',
+                    borderColor: '#017E84',
+                    color: '#FFFFFF',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    borderRadius: '3px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <Plus size={13} />
+                  <span>NEW</span>
+                </button>
               </div>
             </div>
 
-            <div className="header-right">
-              <button
-                className="btn btn-secondary"
-                onClick={() => loadData(true)}
-                title="Refresh data"
-                disabled={refreshing}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '6px 12px' }}
-              >
-                <RefreshCw size={14} style={refreshing ? { animation: 'spin 1s linear infinite' } : undefined} />
-                {refreshing ? 'Syncing...' : 'Sync'}
-              </button>
+            {/* Right: Odoo View Switchers & Records Count */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }} className="hide-on-mobile">
+                Total: <strong>{page === 'customers' ? customers.length : rows.length}</strong> items
+              </div>
+
+              {/* Odoo View Switcher Buttons */}
+              <div style={{
+                display: 'inline-flex',
+                border: '1px solid var(--border)',
+                borderRadius: '3px',
+                overflow: 'hidden',
+                background: '#FFFFFF'
+              }}>
+                <button
+                  onClick={() => handleNavigate('kanban')}
+                  title="Kanban View"
+                  style={{
+                    border: 'none',
+                    padding: '5px 8px',
+                    background: page === 'kanban' ? '#F1F3F5' : 'transparent',
+                    color: page === 'kanban' ? '#714B67' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Columns size={14} />
+                </button>
+                <button
+                  onClick={() => handleNavigate(page === 'orders' ? 'orders' : 'customers')}
+                  title="List View"
+                  style={{
+                    border: 'none',
+                    borderLeft: '1px solid var(--border)',
+                    padding: '5px 8px',
+                    background: ['customers', 'orders'].includes(page) ? '#F1F3F5' : 'transparent',
+                    color: ['customers', 'orders'].includes(page) ? '#714B67' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <List size={14} />
+                </button>
+                <button
+                  onClick={() => handleNavigate('analytics')}
+                  title="Graph / Analytics View"
+                  style={{
+                    border: 'none',
+                    borderLeft: '1px solid var(--border)',
+                    padding: '5px 8px',
+                    background: page === 'analytics' ? '#F1F3F5' : 'transparent',
+                    color: page === 'analytics' ? '#714B67' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <BarChart2 size={14} />
+                </button>
+                <button
+                  onClick={() => handleNavigate('activity-log')}
+                  title="Activity View"
+                  style={{
+                    border: 'none',
+                    borderLeft: '1px solid var(--border)',
+                    padding: '5px 8px',
+                    background: page === 'activity-log' ? '#F1F3F5' : 'transparent',
+                    color: page === 'activity-log' ? '#714B67' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Calendar size={14} />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -926,11 +1120,11 @@ export default function App() {
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
             <div style={{
               width: 48, height: 48, borderRadius: '50%',
-              border: '3px solid rgba(24,119,242,0.2)',
-              borderTopColor: '#1877F2',
+              border: '3px solid rgba(113,75,103,0.2)',
+              borderTopColor: '#714B67',
               animation: 'spin 0.8s linear infinite',
             }} />
-            <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Loading customer data…</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Loading CRM data…</div>
           </div>
         )}
 
@@ -969,8 +1163,8 @@ export default function App() {
           <ErrorBoundary pageName="Halaman ini">
           <Suspense fallback={
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 16 }}>
-              <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid rgba(24,119,242,0.2)', borderTopColor: '#1877F2', animation: 'spin 0.8s linear infinite' }} />
-              <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Memuat halaman...</div>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid rgba(113,75,103,0.2)', borderTopColor: '#714B67', animation: 'spin 0.8s linear infinite' }} />
+              <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Memuat modul Odoo CRM...</div>
             </div>
           }>
             {page === 'dashboard' && (

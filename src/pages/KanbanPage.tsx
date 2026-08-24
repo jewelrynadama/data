@@ -186,66 +186,149 @@ export default function KanbanPage({ rows, customers, settings, onEditOrder }: P
         }
       `}</style>
 
-      {/* Kanban Board */}
-      <div className="kanban-grid">
+      {/* Odoo Kanban Board */}
+      <div className="kanban-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, alignItems: 'start' }}>
         {COLUMNS.map((col) => {
           const colRows = columns[col.status];
           const colValue = colRows.reduce((s, r) => s + (parseInt((r.totalBayar || '').replace(/\D/g, ''), 10) || 0), 0);
 
           return (
-            <div key={col.status} className="kanban-col" style={{ background: col.bg, border: `1px solid ${col.color}33`, borderRadius: 14, overflow: 'hidden', minHeight: 200 }}>
-              {/* Column Header */}
-              <div style={{ padding: '12px 14px', borderBottom: `1px solid ${col.color}33`, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: col.color }}>{col.icon}</span>
-                <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>{col.label}</span>
-                <span style={{ marginLeft: 'auto', background: `${col.color}22`, color: col.color, fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 20 }}>{colRows.length}</span>
-              </div>
-              {colValue > 0 && (
-                <div style={{ padding: '6px 14px', fontSize: 11, color: col.color, fontWeight: 600, background: `${col.color}11`, borderBottom: `1px solid ${col.color}22` }}>
-                  {formatRupiah(colValue)}
+            <div key={col.status} className="kanban-col" style={{ 
+              background: '#F8F9FA', 
+              border: '1px solid var(--border)', 
+              borderRadius: '4px', 
+              overflow: 'hidden', 
+              minHeight: 300,
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              {/* Odoo Column Header */}
+              <div style={{ 
+                padding: '10px 12px', 
+                background: '#FFFFFF',
+                borderBottom: '1px solid var(--border)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                borderTop: `3px solid ${col.color}`
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: col.color, display: 'flex' }}>{col.icon}</span>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>{col.label}</span>
                 </div>
-              )}
+                <span style={{ 
+                  background: '#E9ECEF', 
+                  color: '#495057', 
+                  fontSize: 11, 
+                  fontWeight: 700, 
+                  padding: '1px 6px', 
+                  borderRadius: 3 
+                }}>
+                  {colRows.length}
+                </span>
+              </div>
 
-              {/* Cards */}
-              <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 600, overflowY: 'auto' }}>
+              {/* Odoo Stage Total Aggregate */}
+              <div style={{ 
+                padding: '6px 12px', 
+                fontSize: 11, 
+                color: '#6C757D', 
+                fontWeight: 600, 
+                background: '#F8F9FA', 
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                justifyContent: 'space-between'
+              }}>
+                <span>Expected Revenue:</span>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{formatRupiah(colValue)}</span>
+              </div>
+
+              {/* Cards Container */}
+              <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 640, overflowY: 'auto' }}>
                 {colRows.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 12 }}>Kosong</div>
+                  <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 12 }}>
+                    No orders in this stage
+                  </div>
                 )}
                 {colRows.map((order) => {
                   const colIdx = COLUMNS.findIndex((c) => c.status === col.status);
                   const isMoving = movingId === order.id;
                   const total = parseInt((order.totalBayar || '').replace(/\D/g, ''), 10) || 0;
+                  const cObj = customers.find(x => x.instagram === order.namaInstagram || x.nama === order.namaInstagram);
+                  const isVIP = (cObj?.totalSpend || 0) >= 10000000;
+
                   return (
-                    <div key={order.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', opacity: isMoving ? 0.5 : 1, transition: 'opacity 0.3s' }}>
-                      {/* Customer */}
-                      <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--text-primary)', marginBottom: 4 }}>{order.namaInstagram || '—'}</div>
-                      {/* Product */}
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{order.jenis || order.type || 'Perhiasan'}{order.size ? ` · ${order.size}mm` : ''}</div>
-                      {/* Date & Resi */}
-                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                        <span>📅 {order.tanggalOrder || '—'}</span>
+                    <div 
+                      key={order.id} 
+                      style={{ 
+                        background: '#FFFFFF', 
+                        border: '1px solid var(--border)', 
+                        borderRadius: '4px', 
+                        padding: '10px 12px', 
+                        opacity: isMoving ? 0.5 : 1, 
+                        transition: 'all 0.15s ease',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      {/* Top Title & Stars */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
+                          {order.namaInstagram || '—'}
+                        </span>
+                        <span style={{ fontSize: 11, color: isVIP ? '#F0AD4E' : '#CED4DA' }} title={isVIP ? 'VIP Lead' : 'Priority'}>
+                          {isVIP ? '★★★' : '★☆☆'}
+                        </span>
+                      </div>
+
+                      {/* Product details */}
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        {order.jenis || order.type || 'Jewelry Item'}{order.size ? ` · ${order.size}mm` : ''}
+                      </div>
+
+                      {/* Tags & Kurir */}
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
+                        {isVIP && (
+                          <span style={{ fontSize: 9.5, fontWeight: 700, background: 'rgba(240,173,78,0.15)', color: '#D97706', padding: '1px 5px', borderRadius: 2 }}>
+                            VIP Partner
+                          </span>
+                        )}
+                        {(order as any).kurir && (
+                          <span style={{ fontSize: 9.5, background: '#E9ECEF', color: '#495057', padding: '1px 5px', borderRadius: 2 }}>
+                            {(order as any).kurir}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Date, SLA & Resi */}
+                      <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <Clock size={11} color="var(--accent-purple)" /> {order.tanggalOrder || '—'}
+                        </span>
                         {getSlaBadge(col.status, order.tanggalOrder)}
                         {order.resi && <span>📦 {order.resi}</span>}
                       </div>
+
                       {/* Amount */}
-                      {total > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-green)', marginBottom: 8 }}>{formatRupiah(total)}</div>}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, borderTop: '1px dashed var(--border)', paddingTop: 6 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Total:</span>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#017E84' }}>{formatRupiah(total)}</span>
+                      </div>
+
                       {/* Action & Move Buttons */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <button className="btn btn-secondary" style={{ fontSize: 10, padding: '4px 0', justifyContent: 'center', gap: 4 }} onClick={() => {
-                          const c = customers.find(x => x.instagram === order.namaInstagram || x.nama === order.namaInstagram);
-                          if (c) printInvoice(c, order, settings);
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <button className="btn btn-secondary" style={{ fontSize: 10.5, padding: '3px 0', justifyContent: 'center', gap: 4, borderRadius: 3 }} onClick={() => {
+                          if (cObj) printInvoice(cObj, order, settings);
                           else alert('Customer tidak ditemukan untuk pesanan ini.');
                         }}>
                           🖨️ Cetak Invoice
                         </button>
-                        <div style={{ display: 'flex', gap: 6 }}>
+                        <div style={{ display: 'flex', gap: 4 }}>
                         {colIdx > 0 && (
-                          <button className="btn btn-secondary" style={{ flex: 1, fontSize: 10, padding: '3px 0', justifyContent: 'center', gap: 3 }} onClick={() => handleMove(order.id, 'back')}>
+                          <button className="btn btn-secondary" style={{ flex: 1, fontSize: 10, padding: '3px 0', justifyContent: 'center', gap: 3, borderRadius: 3 }} onClick={() => handleMove(order.id, 'back')}>
                             <ChevronLeft size={11} /> {COLUMNS[colIdx - 1].label}
                           </button>
                         )}
                         {colIdx < COLUMNS.length - 1 && (
-                          <button className="btn btn-primary" style={{ flex: 1, fontSize: 10, padding: '3px 0', justifyContent: 'center', gap: 3 }} onClick={() => {
+                          <button className="btn btn-primary" style={{ flex: 1, fontSize: 10, padding: '3px 0', justifyContent: 'center', gap: 3, borderRadius: 3, background: '#017E84', borderColor: '#017E84' }} onClick={() => {
                             if (col.status === 'proses' && COLUMNS[colIdx + 1].status === 'dikirim') {
                               setWaModalOrder(order);
                             } else {

@@ -34,26 +34,37 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { id: 'dashboard',      label: 'Overview',             icon: LayoutDashboard, group: 'MAIN' },
-  { id: 'customers',      label: 'Customers',            icon: Users,           group: 'MAIN' },
-  { id: 'orders',         label: 'All Orders',           icon: ShoppingBag,     group: 'MAIN' },
-  { id: 'kanban',         label: 'Kanban Tracker',       icon: Columns,         group: 'MAIN' },
-  { id: 'marketing',      label: 'Marketing Hub',        icon: Megaphone,       group: 'INSIGHTS' },
-  { id: 'ads-manager',    label: 'Ads & Social',         icon: Target,          group: 'INSIGHTS', badge: 'NEW' },
-  { id: 'analytics',      label: 'Analytics',            icon: BarChart3,       group: 'INSIGHTS' },
-  { id: 'finance-analytics', label: 'Analisis Keuangan', icon: TrendingUp,      group: 'INSIGHTS' },
-  { id: 'birthday',       label: 'Birthday Tracker',     icon: Gift,            group: 'INSIGHTS' },
-  { id: 'reports',        label: 'Laporan Bulanan',      icon: FileText,        group: 'INSIGHTS' },
-  { id: 'sales-target',   label: 'Sales Target',         icon: Crosshair,       group: 'INSIGHTS' },
-  { id: 'activity-log',   label: 'Activity Log',         icon: ClipboardList,   group: 'INSIGHTS' },
-  { id: 'chat-history', label: 'WA Chat History', icon: MessageCircle,   group: 'TOOLS', badge: 'NEW' },
-  { id: 'whatsapp-importer',    label: 'WA Importer',     icon: MessageCircle, group: 'TOOLS' },
-  { id: 'drive-photo-linker',   label: 'Drive Photos',    icon: HardDrive,     group: 'TOOLS' },
-  { id: 'invoice',    label: 'Invoice',          icon: Receipt,         group: 'TOOLS' },
-  { id: 'catalog',    label: 'Katalog Produk',   icon: Grid,            group: 'TOOLS' },
-  { id: 'inventory',  label: 'Stok / Inventory', icon: Package,         group: 'TOOLS' },
-  { id: 'export',     label: 'Export Data',      icon: Download,        group: 'TOOLS' },
-  { id: 'settings',   label: 'Settings',         icon: Settings,        group: 'TOOLS' },
+  // ── CRM & PIPELINE ───────────────────
+  { id: 'dashboard',      label: 'Overview',             icon: LayoutDashboard, group: 'CRM' },
+  { id: 'kanban',         label: 'Pipeline Tracker',     icon: Columns,         group: 'CRM' },
+  { id: 'customers',      label: 'Customers',            icon: Users,           group: 'CRM' },
+  { id: 'activity-log',   label: 'Activities',           icon: ClipboardList,   group: 'CRM' },
+
+  // ── SALES & ORDERS ───────────────────
+  { id: 'orders',         label: 'Quotations & Orders',  icon: ShoppingBag,     group: 'SALES' },
+  { id: 'invoice',        label: 'Invoices',             icon: Receipt,         group: 'SALES' },
+  { id: 'sales-target',   label: 'Sales Targets',        icon: Crosshair,       group: 'SALES' },
+
+  // ── PRODUCTS & INVENTORY ─────────────
+  { id: 'catalog',        label: 'Product Catalog',      icon: Grid,            group: 'INVENTORY' },
+  { id: 'inventory',      label: 'Stock / Inventory',    icon: Package,         group: 'INVENTORY' },
+
+  // ── MARKETING & ADS ──────────────────
+  { id: 'marketing',      label: 'Marketing Hub',        icon: Megaphone,       group: 'MARKETING' },
+  { id: 'ads-manager',    label: 'Meta Ads & Social',    icon: Target,          group: 'MARKETING', badge: 'ODDO' },
+  { id: 'chat-history',   label: 'WhatsApp History',     icon: MessageCircle,   group: 'MARKETING' },
+  { id: 'whatsapp-importer', label: 'WA Importer',       icon: MessageCircle,   group: 'MARKETING' },
+  { id: 'drive-photo-linker', label: 'Drive Photos',     icon: HardDrive,       group: 'MARKETING' },
+
+  // ── REPORTING & INTELLIGENCE ─────────
+  { id: 'analytics',      label: 'Sales & RFM Analytics', icon: BarChart3,      group: 'REPORTING' },
+  { id: 'finance-analytics', label: 'Financial Analysis', icon: TrendingUp,     group: 'REPORTING' },
+  { id: 'birthday',       label: 'Birthday Tracker',     icon: Gift,            group: 'REPORTING' },
+  { id: 'reports',        label: 'Monthly Reports',      icon: FileText,        group: 'REPORTING' },
+
+  // ── CONFIGURATION ────────────────────
+  { id: 'export',         label: 'Export & Backup',      icon: Download,        group: 'CONFIGURATION' },
+  { id: 'settings',       label: 'Settings',             icon: Settings,        group: 'CONFIGURATION' },
 ];
 
 export default function Sidebar({ page, onNavigate, totalCustomers, totalOrders, pendingCount = 0, isOpen, onClose }: SidebarProps) {
@@ -86,40 +97,24 @@ export default function Sidebar({ page, onNavigate, totalCustomers, totalOrders,
           return (
             <React.Fragment key={item.id}>
               {showGroup && (
-                <div
-                  className="nav-section-label"
-                  style={item.group === 'AI_MIND' ? {
-                    background: 'linear-gradient(90deg,#7c3aed,#06b6d4)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    fontWeight: 800,
-                    letterSpacing: '0.5px',
-                  } : undefined}
-                >
-                  {item.group === 'AI_MIND' ? '✦ AI COMMAND' : item.group}
+                <div className="nav-section-label">
+                  {item.group}
                 </div>
               )}
               <button
                 className={`nav-item ${page === item.id ? 'active' : ''}`}
                 onClick={() => onNavigate(item.id)}
-                style={item.group === 'AI_MIND' ? {
-                  background: page === item.id
-                    ? 'linear-gradient(135deg,rgba(124,58,237,0.25),rgba(6,182,212,0.15))'
-                    : 'linear-gradient(135deg,rgba(124,58,237,0.08),rgba(6,182,212,0.05))',
-                  border: '1px solid rgba(124,58,237,0.25)',
-                  marginBottom: 4,
-                } : undefined}
               >
-                <Icon size={16} className="nav-icon" style={item.group === 'AI_MIND' ? { color: '#7c3aed' } : undefined} />
-                {item.label}
+                <Icon size={16} className="nav-icon" />
+                <span>{item.label}</span>
                 {badge !== undefined && badge > 0 && (
                   <span className="nav-badge">{badge}</span>
                 )}
                 {stringBadge && (
                   <span style={{
                     marginLeft: 'auto', fontSize: 9, fontWeight: 700,
-                    background: 'var(--text-primary)',
-                    color: 'var(--bg-primary)', padding: '2px 6px', borderRadius: 4,
+                    background: 'var(--accent-teal)',
+                    color: '#FFFFFF', padding: '1px 5px', borderRadius: 3,
                     letterSpacing: '0.3px',
                   }}>
                     {stringBadge}
