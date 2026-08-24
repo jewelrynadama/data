@@ -166,121 +166,72 @@ export default function BirthdayBanner({ alerts, settings, onSelectCustomer }: P
         }
       `}</style>
 
-      <div className={`birthday-banner-container ${todayAlerts.length ? 'today' : 'upcoming'}`}>
-        {/* Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '11px 16px',
-          borderBottom: alerts.length > 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Blinking dot */}
-            <span style={{
-              width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
-              background: todayAlerts.length ? '#ef4444' : '#f59e0b',
-              animation: 'blink-dot 1.2s ease-in-out infinite',
-              display: 'inline-block',
-            }} />
-            <span className={`birthday-header-text ${todayAlerts.length ? 'today' : 'upcoming'}`}>
-              {todayAlerts.length
-                ? `🎂 ${todayAlerts.length} customer ulang tahun HARI INI!`
-                : `🎉 ${alerts.length} customer akan ulang tahun di bulan ini`}
+      <div style={{
+        background: todayAlerts.length ? '#FEF2F2' : '#FFFBEB',
+        border: `1px solid ${todayAlerts.length ? '#FECACA' : '#FDE68A'}`,
+        borderRadius: '4px',
+        padding: '8px 14px',
+        marginBottom: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        flexWrap: 'wrap'
+      }}>
+        {/* Info */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: todayAlerts.length ? '#991B1B' : '#92400E' }}>
+          <span>{todayAlerts.length ? '🎂' : '🎉'}</span>
+          <strong>{todayAlerts.length ? `${todayAlerts.length} Ulang Tahun Hari Ini!` : `${alerts.length} Ulang Tahun Bulan Ini:`}</strong>
+          {alerts[activeIndex] && (
+            <span 
+              onClick={() => onSelectCustomer && onSelectCustomer(alerts[activeIndex].customer)}
+              style={{ cursor: onSelectCustomer ? 'pointer' : 'default', textDecoration: onSelectCustomer ? 'underline' : 'none', fontWeight: 600 }}
+            >
+              {alerts[activeIndex].customer.nama} ({formatBirthday(alerts[activeIndex].customer.tanggalUlangTahun)})
             </span>
-          </div>
+          )}
+          {alerts[activeIndex] && alerts[activeIndex].daysUntil !== 0 && (
+            <span style={{ fontSize: '11px', opacity: 0.8 }}>
+              · {alerts[activeIndex].daysUntil < 0 ? `Lewat ${Math.abs(alerts[activeIndex].daysUntil)} hari` : `${alerts[activeIndex].daysUntil} hari lagi`}
+            </span>
+          )}
+        </div>
+
+        {/* Action + Close */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {alerts[activeIndex]?.customer.wa && (
+            <a
+              href={getWhatsAppBirthdayUrl(alerts[activeIndex].customer)}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ textDecoration: 'none' }}
+            >
+              <button
+                style={{
+                  background: '#25D366',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '3px',
+                  padding: '3px 10px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                Kirim WA
+              </button>
+            </a>
+          )}
           <button
             onClick={() => setDismissed(true)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4, borderRadius: 4 }}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: '2px', display: 'flex' }}
+            title="Tutup banner"
           >
             <X size={14} />
           </button>
-        </div>
-
-        {/* Customer list (Carousel) */}
-        <div style={{ padding: '8px 16px 12px', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 64, position: 'relative' }}>
-          {alerts.map((alert, idx) => {
-            if (idx !== activeIndex) return null;
-            const isToday = alert.daysUntil === 0;
-            return (
-              <div key={`${alert.customer.id}-${activeIndex}`} style={{
-                display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap',
-                padding: '8px 12px',
-                background: isToday ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.06)',
-                border: `1px solid ${isToday ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.12)'}`,
-                borderRadius: 8,
-                animation: alerts.length > 1 ? 'slideFade 3s ease-in-out infinite' : 'fadeIn 0.5s ease-out'
-              }}>
-                {/* Clickable Area for Profile Selection */}
-                <div
-                  onClick={() => onSelectCustomer && onSelectCustomer(alert.customer)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    flex: 1,
-                    minWidth: 0,
-                    cursor: onSelectCustomer ? 'pointer' : 'default',
-                    borderRadius: 4,
-                    transition: 'all 0.15s',
-                  }}
-                  title={onSelectCustomer ? "Klik untuk melihat profil pelanggan" : undefined}
-                  onMouseEnter={(e) => {
-                    if (onSelectCustomer) e.currentTarget.style.opacity = '0.8';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (onSelectCustomer) e.currentTarget.style.opacity = '1';
-                  }}
-                >
-                  {/* Avatar */}
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                    background: isToday
-                      ? 'linear-gradient(135deg,#ef4444,#f59e0b)'
-                      : 'linear-gradient(135deg,#f59e0b,#fbbf24)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700, color: 'white',
-                    animation: isToday ? 'blink-dot 1.4s ease-in-out infinite' : 'none',
-                  }}>
-                    {alert.customer.nama.charAt(0).toUpperCase()}
-                  </div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {alert.customer.nama}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      🎂 {formatBirthday(alert.customer.tanggalUlangTahun)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="birthday-actions-group">
-                  {/* WA quick contact */}
-                  {alert.customer.wa && (
-                    <a
-                      href={getWhatsAppBirthdayUrl(alert.customer)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ flexShrink: 0 }}
-                      title="Kirim ucapan via WhatsApp"
-                    >
-                      <button className="btn btn-primary" style={{ padding: '5px 12px', fontSize: 11.5, gap: 5, background: '#25D366', borderColor: '#25D366', color: '#000' }}>
-                        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
-                          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.513 2.262 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.498 1.45 5.419 1.451 5.928 0 10.751-4.823 10.754-10.75.002-2.873-1.116-5.573-3.149-7.607C17.58 1.214 14.88.095 12.008.095c-5.93 0-10.753 4.821-10.756 10.75-.001 1.91.498 3.778 1.447 5.378L1.696 20.8l4.951-1.646zm11.516-7.391c-.307-.154-1.82-.9-2.1-.1-.28.1-.482.4-.592.512-.11.12-.224.13-.532-.024-.31-.154-1.307-.481-2.49-1.536-.919-.82-1.54-1.834-1.72-2.143-.18-.309-.019-.476.135-.629.14-.136.31-.36.465-.54.154-.18.206-.309.309-.514.103-.207.051-.386-.026-.54-.077-.154-.692-1.67-.949-2.29-.25-.603-.523-.518-.72-.528-.19-.01-.408-.01-.624-.01-.216 0-.57.08-.868.407-.299.329-1.14 1.114-1.14 2.717 0 1.603 1.167 3.153 1.328 3.367.162.215 2.297 3.51 5.565 4.916.777.334 1.385.534 1.859.684.78.248 1.49.213 2.051.129.626-.093 1.82-.743 2.077-1.462.257-.718.257-1.332.18-1.462-.077-.13-.284-.207-.592-.361z"/>
-                        </svg>
-                        Ucapkan
-                      </button>
-                    </a>
-                  )}
-
-                  {/* Day badge */}
-                  <span className={`birthday-badge-day ${isToday ? 'today' : alert.daysUntil < 0 ? 'past' : 'upcoming'}`}>
-                    {isToday ? '🔴 HARI INI' : alert.daysUntil < 0 ? `⌛ Lewat ${Math.abs(alert.daysUntil)} hari` : `${alert.daysUntil} hari lagi`}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-
         </div>
       </div>
     </>

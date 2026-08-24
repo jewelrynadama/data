@@ -51,7 +51,7 @@ export default function PearlAIChatWidget({ customers }: Props) {
         onClick={() => setIsOpen(true)}
         style={{ display: isOpen ? 'none' : 'flex' }}
       >
-        <Sparkles size={24} />
+        <Sparkles size={16} />
       </button>
 
       {isOpen && (
@@ -111,20 +111,20 @@ export default function PearlAIChatWidget({ customers }: Props) {
       <style>{`
         .pearl-ai-fab {
           position: fixed;
-          bottom: 96px;
+          bottom: 68px;
           right: 24px;
-          width: 50px;
-          height: 50px;
-          border-radius: 25px;
-          background: linear-gradient(135deg, #714B67, #00A09D);
-          color: white;
-          border: none;
+          width: 36px;
+          height: 36px;
+          border-radius: 18px;
+          background: #FFFFFF;
+          color: #714B67;
+          border: 1px solid var(--border);
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 14px rgba(113, 75, 103, 0.4);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
           cursor: pointer;
-          transition: transform 0.2s, box-shadow 0.2s;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
           z-index: 9990;
         }
         .pearl-ai-fab:hover {

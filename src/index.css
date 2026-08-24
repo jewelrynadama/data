@@ -49,7 +49,7 @@
   --shadow-lg: 0 4px 12px rgba(0,0,0,0.08);
   --shadow-glow: none;
 
-  --sidebar-width: 220px;
+  --sidebar-width: 240px;
   --header-height: 40px;
   --border-radius: 3px;
   --border-radius-sm: 2px;
@@ -336,12 +336,12 @@ body {
 }
 
 .nav-section-label {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
-  color: var(--text-muted);
+  color: #8A92A6;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
-  padding: 12px 8px 4px;
+  letter-spacing: 0.6px;
+  padding: 12px 10px 4px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -350,14 +350,14 @@ body {
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 3px;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: 4px;
   color: var(--text-secondary);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.08s ease;
+  transition: background 0.08s ease, color 0.08s ease;
   border: none;
   background: none;
   width: 100%;
@@ -370,11 +370,10 @@ body {
 }
 
 .nav-item.active {
-  background: rgba(113, 75, 103, 0.08);
+  background: #F3EEF2;
   color: #714B67;
   font-weight: 600;
-  border-left: 3px solid #714B67;
-  padding-left: 5px;
+  border-left: none;
 }
 
 .nav-item.active .nav-icon {
@@ -387,10 +386,10 @@ body {
   margin-left: auto;
   background: #714B67;
   color: white;
-  font-size: 9px;
+  font-size: 9.5px;
   font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 2px;
+  padding: 1px 6px;
+  border-radius: 3px;
   min-width: 16px;
   text-align: center;
 }
@@ -526,7 +525,7 @@ body {
 /* ── STAT CARDS (Odoo Enterprise Metric Tiles) ──────────────── */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -534,15 +533,16 @@ body {
 .stat-card {
   background: #FFFFFF;
   border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 14px 16px;
+  border-radius: 4px;
+  padding: 12px 14px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   position: relative;
   overflow: hidden;
   cursor: default;
   border-top: 3px solid var(--accent-purple);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
 }
 
 .stat-card.purple { border-top-color: #714B67; }
@@ -552,9 +552,9 @@ body {
 .stat-card.pink { border-top-color: #DC3545; }
 
 .stat-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 3px;
+  width: 34px;
+  height: 34px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -567,10 +567,10 @@ body {
 .stat-icon.cyan { background: rgba(0, 160, 157, 0.08); color: #00A09D; }
 .stat-icon.pink { background: rgba(220, 53, 69, 0.08); color: #DC3545; }
 
-.stat-info { flex: 1; min-width: 0; width: 100%; }
+.stat-info { flex: 1; min-width: 0; }
 .stat-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 600; margin-bottom: 2px; }
-.stat-value { font-size: 22px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; line-height: 1.2; }
-.stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.stat-value { font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── CHARTS GRID ────────────────────────────────── */
 .charts-grid {

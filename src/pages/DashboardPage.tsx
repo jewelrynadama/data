@@ -577,8 +577,8 @@ export default function DashboardPage({ customers, rows, birthdayAlerts, onSelec
                   cutout: '65%',
                   plugins: {
                     legend: {
-                      position: 'right',
-                      labels: { color: theme === 'light' ? '#334155' : '#94a3b8', font: { family: 'Inter', size: 11 }, boxWidth: 10, padding: 12 },
+                      position: 'bottom',
+                      labels: { color: theme === 'light' ? '#334155' : '#94a3b8', font: { family: 'Inter', size: 10 }, boxWidth: 8, padding: 8 },
                     },
                     tooltip: (chartOptions.plugins.tooltip as any),
                   },

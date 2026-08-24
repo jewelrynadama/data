@@ -268,18 +268,18 @@ export default function JarvisVoiceAI({ customers, rows, settings, setPage }: Pr
       <button
         onClick={toggleListening}
         style={{
-          width: 60, height: 60, borderRadius: '50%',
-          background: isListening ? '#ef4444' : isSpeaking ? '#0ea5e9' : 'var(--bg-card)',
+          width: 36, height: 36, borderRadius: '50%',
+          background: isListening ? '#ef4444' : isSpeaking ? '#0ea5e9' : '#FFFFFF',
           color: isListening || isSpeaking ? '#fff' : '#0ea5e9',
-          border: isListening || isSpeaking ? 'none' : '2px solid #0ea5e9',
-          boxShadow: isListening ? '0 0 30px rgba(239,68,68,0.5)' : isSpeaking ? '0 0 30px rgba(14,165,233,0.5)' : '0 4px 15px rgba(0,0,0,0.1)',
+          border: isListening || isSpeaking ? 'none' : '1px solid var(--border)',
+          boxShadow: isListening ? '0 0 15px rgba(239,68,68,0.4)' : '0 2px 8px rgba(0,0,0,0.08)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-          transform: isListening ? 'scale(1.1)' : 'scale(1)'
+          cursor: 'pointer', transition: 'all 0.2s ease',
+          transform: isListening ? 'scale(1.05)' : 'scale(1)'
         }}
         title="Bicara dengan Vera"
       >
-        {isSpeaking ? <Volume2 size={26} /> : isListening ? <MicOff size={26} /> : speechSupported ? <Mic size={26} /> : <div style={{fontSize: 24}}>✨</div>}
+        {isSpeaking ? <Volume2 size={16} /> : isListening ? <MicOff size={16} /> : speechSupported ? <Mic size={16} /> : <div style={{fontSize: 14}}>✨</div>}
       </button>
 
       <style>{`

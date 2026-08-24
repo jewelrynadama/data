@@ -829,9 +829,9 @@ export default function App() {
          {/* Left: Odoo App Switcher & Top Level Modules */}
          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button 
-              className="mobile-menu-btn" 
+              className="mobile-menu-btn hide-on-desktop" 
               onClick={() => setSidebarOpen(true)}
-              style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+              style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', padding: '4px' }}
             >
               <Menu size={18} />
             </button>
@@ -1024,7 +1024,7 @@ export default function App() {
             </div>
 
             {/* Center: Odoo Control Panel Search Bar */}
-            <div style={{ flex: 1, maxWidth: 360, margin: '0 12px' }} className="hide-on-mobile">
+            <div style={{ flex: 1, maxWidth: 300, margin: '0 8px' }} className="hide-on-mobile">
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1039,7 +1039,7 @@ export default function App() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search records, customers, orders..."
+                  placeholder="Search records..."
                   style={{
                     border: 'none',
                     background: 'transparent',
@@ -1059,9 +1059,9 @@ export default function App() {
             </div>
 
             {/* Right: Odoo View Switchers & Records Count */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }} className="hide-on-mobile">
-                Total: <strong>{page === 'customers' ? customers.length : rows.length}</strong> items
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }} className="hide-on-mobile">
+                <strong style={{ color: 'var(--text-primary)' }}>{page === 'customers' ? customers.length : rows.length}</strong> items
               </div>
 
               {/* Odoo View Switcher Buttons */}
